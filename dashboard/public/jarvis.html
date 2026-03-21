@@ -648,8 +648,8 @@ function renderLeftRail(){
       <div class="econ-row"><span class="elabel">${t('metrics.usdIndex','USD Index')}</span><span class="eval">${usd?.value?.toFixed(1)||'--'}</span></div>
       <div class="econ-row"><span class="elabel">${t('metrics.joblessClaims','Jobless Claims')}</span><span class="eval">${claims?.value?.toLocaleString()||'--'}</span></div>
       <div class="econ-row"><span class="elabel">${t('metrics.mortgage30y','30Y Mortgage')}</span><span class="eval">${mort?.value||'--'}%</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.m2Supply','M2 Supply')}</span><span class="eval">$${(m2?.value/1000)?.toFixed(1)||'--'}T</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.natDebt','Nat. Debt')}</span><span class="eval">$${(parseFloat(D.treasury.totalDebt)/1e12).toFixed(2)}T</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.m2Supply','M4 Supply')}</span><span class="eval">${m2?.value?m2.value.toFixed(1)+'%':'--'}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.natDebt','UK Debt')}</span><span class="eval">${D.treasury.totalDebt?parseFloat(D.treasury.totalDebt).toFixed(1)+'% GDP':'--'}</span></div>
     </div>
     <div class="g-panel">
       <div class="sec-head"><h3>${t('panels.spaceWatch','Space Watch')}</h3><span class="badge">${t('badges.orbital','CELESTRAK')}</span></div>
@@ -877,7 +877,7 @@ function plotMarkers(){
   });
 
   // === Nuclear sites (yellow) ===
-  const nukeCoords=[{lat:47.5,lon:34.6},{lat:51.4,lon:30.1},{lat:28.8,lon:50.9},{lat:39.8,lon:125.8},{lat:37.4,lon:141},{lat:31.0,lon:35.1}];
+  const nukeCoords=[{lat:54.42,lon:-3.5},{lat:51.21,lon:-3.13},{lat:52.22,lon:1.62},{lat:56.07,lon:-4.82},{lat:51.37,lon:-1.15},{lat:51.02,lon:2.11},{lat:47.51,lon:34.58},{lat:39.8,lon:125.75}];
   D.nuke.forEach((n,i)=>{
     const c=nukeCoords[i]; if(!c) return;
     points.push({
@@ -938,18 +938,18 @@ function plotMarkers(){
     points.push({
       lat:a.lat, lng:a.lon, size:0.22, alt:0.01,
       color:'rgba(255,152,0,0.8)', type:'weather', priority:2,
-      popHead:a.event, popMeta:'NOAA/NWS · '+a.severity,
+      popHead:a.event, popMeta:'Met Office · '+a.severity,
       popText:a.headline||''
     });
   });
 
-  // === EPA RadNet stations (lime green) ===
+  // === UK Radiation stations (lime green) ===
   (D.epa?.stations||[]).forEach(s=>{
     points.push({
       lat:s.lat, lng:s.lon, size:0.18, alt:0.006,
       color:'rgba(205,220,57,0.7)', type:'radiation', priority:3,
-      popHead:'RadNet: '+s.location, popMeta:'EPA Radiation Monitor',
-      popText:`${s.analyte||'--'}: ${s.result||'--'} ${s.unit||''}<br>State: ${s.state}`
+      popHead:'Radiation: '+s.location, popMeta:'UK Radiation Monitor',
+      popText:`${s.analyte||'--'}: ${s.result||'--'} ${s.unit||''}`
     });
   });
 
@@ -1229,7 +1229,7 @@ function plotFlatMarkers(){
     g.append('text').attr('class','marker-label').attr('x',8).attr('y',3).attr('fill','var(--dim)').attr('font-size','8px').attr('font-family','var(--mono)').text(cp.label);
   });
   // Nuclear
-  const nukeCoords=[{lat:47.5,lon:34.6},{lat:51.4,lon:30.1},{lat:28.8,lon:50.9},{lat:39.8,lon:125.8},{lat:37.4,lon:141},{lat:31.0,lon:35.1}];
+  const nukeCoords=[{lat:54.42,lon:-3.5},{lat:51.21,lon:-3.13},{lat:52.22,lon:1.62},{lat:56.07,lon:-4.82},{lat:51.37,lon:-1.15},{lat:51.02,lon:2.11},{lat:47.51,lon:34.58},{lat:39.8,lon:125.75}];
   D.nuke.forEach((n,i)=>{const c=nukeCoords[i];if(!c)return;addPt(c.lat,c.lon,4,'rgba(255,224,130,0.7)','rgba(255,224,130,0.3)',ev=>showPopup(ev,n.site,`CPM: ${n.cpm?.toFixed(1)||'--'}`,'Radiation'),2)});
   // SDR
   D.sdr.zones.forEach(z=>z.receivers.forEach(r=>{addPt(r.lat,r.lon,2.5,'rgba(68,204,255,0.5)','rgba(68,204,255,0.2)',ev=>showPopup(ev,'SDR',`${r.name}<br>${z.region}`,'KiwiSDR'),3)}));
@@ -1241,10 +1241,10 @@ function plotFlatMarkers(){
   D.who.slice(0,10).forEach((w,i)=>{const c=whoGeo[i];if(!c)return;addPt(c.lat,c.lon,3.5,'rgba(105,240,174,0.6)','rgba(105,240,174,0.2)',ev=>showPopup(ev,w.title,w.summary||'','WHO'),2)});
   // News
   (D.news||[]).forEach(n=>{addPt(n.lat,n.lon,3,'rgba(129,212,250,0.6)','rgba(129,212,250,0.2)',ev=>showPopup(ev,n.source+' NEWS',cleanText(n.title),n.region),3)});
-  // NOAA weather
-  (D.noaa?.alerts||[]).forEach(a=>{addPt(a.lat,a.lon,4,'rgba(255,152,0,0.7)','rgba(255,152,0,0.3)',ev=>showPopup(ev,a.event,a.headline||'','NOAA/NWS'),2)});
-  // EPA RadNet
-  (D.epa?.stations||[]).forEach(s=>{addPt(s.lat,s.lon,3,'rgba(205,220,57,0.6)','rgba(205,220,57,0.2)',ev=>showPopup(ev,'RadNet: '+s.location,`${s.analyte||'--'}: ${s.result||'--'} ${s.unit||''}`,'EPA'),3)});
+  // Met Office / EA weather
+  (D.noaa?.alerts||[]).forEach(a=>{addPt(a.lat,a.lon,4,'rgba(255,152,0,0.7)','rgba(255,152,0,0.3)',ev=>showPopup(ev,a.event,a.headline||'','Met Office'),2)});
+  // UK Radiation
+  (D.epa?.stations||[]).forEach(s=>{addPt(s.lat,s.lon,3,'rgba(205,220,57,0.6)','rgba(205,220,57,0.2)',ev=>showPopup(ev,'UK Radiation: '+s.location,`${s.analyte||'--'}: ${s.result||'--'} ${s.unit||''}`,'Radiation'),3)});
   // Space stations
   (D.space?.stationPositions||[]).forEach(s=>{
     const g=addPt(s.lat,s.lon,5,'rgba(255,255,255,0.9)','rgba(255,255,255,0.4)',ev=>showPopup(ev,s.name,'Orbital position estimate','Space Station'),1);
@@ -1357,7 +1357,8 @@ function renderLower(){
     if(!q||q.error) return '';
     const clr = q.changePct>=0?'var(--accent)':'var(--warn)';
     const arrow = q.changePct>=0?'&#9650;':'&#9660;';
-    return `<div class="mc"><div class="ml">${q.name||q.symbol}</div><span class="mv" style="color:${clr}">${q.symbol.includes('BTC')||q.symbol.includes('ETH')?'$'+q.price.toLocaleString():'$'+q.price}</span><span class="ms" style="color:${clr}">${arrow} ${q.changePct>=0?'+':''}${q.changePct}%</span></div>`;
+    const cur=(q.currency==='GBP'||q.currency==='GBp')?'£':'$';
+    return `<div class="mc"><div class="ml">${q.name||q.symbol}</div><span class="mv" style="color:${clr}">${q.symbol.includes('BTC')||q.symbol.includes('ETH')?cur+q.price.toLocaleString():cur+q.price}</span><span class="ms" style="color:${clr}">${arrow} ${q.changePct>=0?'+':''}${q.changePct}%</span></div>`;
   };
 
   // VIX from Yahoo Finance live data (fallback to FRED)
@@ -1367,11 +1368,11 @@ function renderLower(){
   const vixChg = vixLive?.changePct != null ? `${vixLive.changePct>=0?'+':''}${vixLive.changePct}%` : '';
 
   const metrics=[
-    {l:'WTI Crude',v:`$${D.energy.wti}`,s:'$/bbl',p:70},
-    {l:'Brent',v:`$${D.energy.brent}`,s:'$/bbl',p:75},
+    {l:'Brent Crude',v:`$${D.energy.brent}`,s:'$/bbl',p:75},
+    {l:'WTI Ref.',v:`$${D.energy.wti}`,s:'$/bbl',p:70},
     {l:'Nat Gas',v:`$${D.energy.natgas||'--'}`,s:'$/MMBtu',p:30},
     {l:'VIX',v:vixVal?vixVal.toFixed(1):'--',s:vixChg||'volatility index',p:vixVal?Math.min(vixVal*2.5,100):30},
-    {l:'Fed Funds',v:ff?`${ff.value}%`:'--',s:ff?.date||'',p:36},
+    {l:'Bank Rate',v:ff?`${ff.value}%`:'--',s:ff?.date||'',p:36},
     {l:'GSCPI',v:gscpi?gscpi.value.toFixed(2):'--',s:gscpi?.interpretation||'',p:49},
     {l:'CPI MoM',v:cpi?`+${cpi.momChangePct?.toFixed(2)}%`:'--',s:cpi?.date||'',p:37},
     {l:'Unemployment',v:ue?`${ue.value}%`:'--',s:ue?`${ue.momChange>0?'+':''}${ue.momChange} vs prior`:'',p:44},
@@ -1382,13 +1383,16 @@ function renderLower(){
     const f = D.fred.find(f=>f.id===id);
     return f?.recent?.length > 1 ? {spark: f.recent, sparkUp: up} : {};
   };
-  metrics[0] = {...metrics[0], spark: D.energy.wtiRecent, sparkUp: false};
+  metrics[0] = {...metrics[0], spark: D.energy.wtiRecent, sparkUp: false}; // wtiRecent now holds Brent data (UK primary)
 
-  // Build live market cards from Yahoo Finance
+  // Build live market cards from Yahoo Finance (UK-centric)
   const indexCards = (mkt.indexes||[]).map(mktCard).join('');
+  const ukStockCards = (mkt.ukStocks||[]).map(mktCard).join('');
+  const giltCards = (mkt.gilts||[]).map(mktCard).join('');
+  const forexCards = (mkt.forex||[]).map(mktCard).join('');
   const cryptoCards = (mkt.crypto||[]).map(mktCard).join('');
   const rateCards = (mkt.rates||[]).map(mktCard).join('');
-  const hasMarkets = indexCards || cryptoCards;
+  const hasMarkets = indexCards || ukStockCards || cryptoCards;
 
   const srcHtml=D.health.map(s=>`<div class="src-item"><div class="sd ${s.err?'err':'ok'}"></div><span>${s.n}</span></div>`).join('');
 
@@ -1448,11 +1452,19 @@ function renderLower(){
   const macroPanel = `<div class="g-panel lp-macro">
       <div class="sec-head"><h3>${t('panels.macroMarkets','Macro + Markets')}</h3><span class="badge">${mkt.timestamp?t('badges.live','LIVE'):t('badges.delayed','DELAYED')}</span></div>
       ${hasMarkets?`<div style="margin-bottom:8px">
-        <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">INDEXES</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">${t('metrics.indexes','UK INDICES')}</div>
         <div class="metrics-row">${indexCards}</div>
       </div>
+      ${ukStockCards?`<div style="margin-bottom:8px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">UK STOCKS</div>
+        <div class="metrics-row">${ukStockCards}</div>
+      </div>`:''}
+      ${giltCards||forexCards?`<div style="margin-bottom:8px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">GILTS + FX</div>
+        <div class="metrics-row">${giltCards}${forexCards}</div>
+      </div>`:''}
       <div style="margin-bottom:8px">
-        <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">CRYPTO</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">${t('metrics.crypto','CRYPTO')}</div>
         <div class="metrics-row">${cryptoCards}</div>
       </div>`:''}
       <div style="margin-bottom:8px">
@@ -1463,7 +1475,7 @@ function renderLower(){
         }).join('')}</div>
       </div>
       <div style="margin-top:6px">
-        <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:4px">WTI 5-DAY</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:4px">${t('metrics.wti5day','BRENT 5-DAY')}</div>
         <div class="spark">${sparkHtml}</div>
       </div>
     </div>`;
@@ -1548,9 +1560,9 @@ function runBoot(){
     {text:t('boot.initializing','INITIALIZING CRUCIX ENGINE v2.1.0'),delay:0},
     {text:t('boot.connecting','CONNECTING {count} OSINT SOURCES...').replace('{count}',D.meta.sourcesQueried),delay:400},
     {text:'&#9500;&#9472; '+t('boot.sourceGroup1','OPENSKY · FIRMS · KIWISDR · MARITIME'),delay:700},
-    {text:'&#9500;&#9472; '+t('boot.sourceGroup2','FRED · BLS · EIA · TREASURY · GSCPI'),delay:900},
-    {text:'&#9500;&#9472; '+t('boot.sourceGroup3','TELEGRAM · SAFECAST · EPA · WHO · OFAC'),delay:1100},
-    {text:'&#9492;&#9472; '+t('boot.sourceGroup4','GDELT · NOAA · PATENTS · BLUESKY · REDDIT'),delay:1300},
+    {text:'&#9500;&#9472; '+t('boot.sourceGroup2','BOE · ONS · UK ENERGY · HM TREASURY · GSCPI'),delay:900},
+    {text:'&#9500;&#9472; '+t('boot.sourceGroup3','TELEGRAM · SAFECAST · UK RADIATION · WHO · OFAC'),delay:1100},
+    {text:'&#9492;&#9472; '+t('boot.sourceGroup4','GDELT · MET OFFICE · PATENTS · BLUESKY · REDDIT'),delay:1300},
     {text:t('boot.sweepComplete','SWEEP COMPLETE — {ok}/{total} SOURCES').replace('{ok}',`<span class="count">${D.meta.sourcesOk}</span>`).replace('{total}',D.meta.sourcesQueried)+' <span class="ok">'+t('boot.ok','OK')+'</span>',delay:1700},
     {text:t('boot.acledLayer','ACLED CONFLICT LAYER')+': '+acledStatus,delay:1900},
     {text:t('boot.flightCorridors','FLIGHT CORRIDORS')+': <span class="ok">'+t('boot.active','ACTIVE')+'</span> &#183; '+t('boot.dualProjection','DUAL PROJECTION')+': <span class="ok">'+t('boot.ready','READY')+'</span>',delay:2100},
