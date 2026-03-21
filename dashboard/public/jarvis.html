@@ -624,12 +624,13 @@ function renderLeftRail(){
   ];
   const allNormal=D.nuke.every(s=>!s.anom);
   const nukeHtml=D.nuke.map(s=>`<div class="site-row"><span>${s.site}</span><span class="site-val">${s.n>0?(s.cpm?.toFixed(1)||'--')+' CPM':'No data'}</span></div>`).join('');
-  const vix=D.fred.find(f=>f.id==='VIXCLS');
-  const hy=D.fred.find(f=>f.id==='BAMLH0A0HYM2');
-  const usd=D.fred.find(f=>f.id==='DTWEXBGS');
-  const m2=D.fred.find(f=>f.id==='M2SL');
-  const mort=D.fred.find(f=>f.id==='MORTGAGE30US');
-  const claims=D.fred.find(f=>f.id==='ICSA');
+  // UK indicator lookups (BoE series IDs)
+  const vix=D.markets?.vix||null; // VIX comes from Yahoo Finance, not BoE
+  const gbpusd=D.fred.find(f=>f.id==='XUDLGBD');
+  const m4=D.fred.find(f=>f.id==='LPMAUYN');
+  const mort=D.fred.find(f=>f.id==='IUDMNZR');
+  const claimant=D.bls.find(b=>b.id==='KA6D');
+  const cpiUK=D.fred.find(f=>f.id==='D7BT');
 
   document.getElementById('leftRail').innerHTML=`
     <div class="g-panel">
@@ -643,13 +644,13 @@ function renderLeftRail(){
     </div>
     <div class="g-panel">
       <div class="sec-head"><h3>${t('panels.riskGauges','Risk Gauges')}</h3><span class="badge">${t('badges.stress','STRESS')}</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.vix','VIX')} (Fear)</span><span class="eval" style="color:${vix?.value>20?'var(--warn)':'var(--accent)'}">${vix?.value||'--'}</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.hySpread','HY Spread')}</span><span class="eval">${hy?.value||'--'}</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.usdIndex','USD Index')}</span><span class="eval">${usd?.value?.toFixed(1)||'--'}</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.joblessClaims','Jobless Claims')}</span><span class="eval">${claims?.value?.toLocaleString()||'--'}</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.mortgage30y','30Y Mortgage')}</span><span class="eval">${mort?.value||'--'}%</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.m2Supply','M4 Supply')}</span><span class="eval">${m2?.value?m2.value.toFixed(1)+'%':'--'}</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.natDebt','UK Debt')}</span><span class="eval">${D.treasury.totalDebt?parseFloat(D.treasury.totalDebt).toFixed(1)+'% GDP':'--'}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.vix','VIX')} (Fear)</span><span class="eval" style="color:${vix?.value>20?'var(--warn)':'var(--accent)'}">${vix?.value?.toFixed(1)||'--'}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.usdIndex','GBP/USD')}</span><span class="eval">${gbpusd?.value?.toFixed(4)||'--'}</span></div>
+      <div class="econ-row"><span class="elabel">UK CPI</span><span class="eval" style="color:${cpiUK?.value>4?'var(--warn)':'var(--accent)'}">${cpiUK?.value!=null?cpiUK.value+'%':'--'}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.joblessClaims','Claimant Count')}</span><span class="eval">${claimant?.value?.toLocaleString()||'--'}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.mortgage30y','SVR Mortgage')}</span><span class="eval">${mort?.value!=null?mort.value+'%':'--'}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.m2Supply','M4 Supply')}</span><span class="eval">${m4?.value!=null?m4.value.toFixed(1)+'%':'--'}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.natDebt','UK Debt')}</span><span class="eval">${D.treasury.totalDebt&&D.treasury.totalDebt!=='0'?parseFloat(D.treasury.totalDebt).toFixed(1)+'% GDP':'--'}</span></div>
     </div>
     <div class="g-panel">
       <div class="sec-head"><h3>${t('panels.spaceWatch','Space Watch')}</h3><span class="badge">${t('badges.orbital','CELESTRAK')}</span></div>
@@ -658,7 +659,7 @@ function renderLeftRail(){
         <div class="econ-row"><span class="elabel">Military Sats</span><span class="eval">${D.space.militarySats||0}</span></div>
         <div class="econ-row"><span class="elabel">Starlink</span><span class="eval">${D.space.constellations?.starlink||0}</span></div>
         <div class="econ-row"><span class="elabel">OneWeb</span><span class="eval">${D.space.constellations?.oneweb||0}</span></div>
-        ${D.space.iss ? `<div class="econ-row"><span class="elabel">ISS</span><span class="eval" style="color:var(--accent)">ALT ${((D.space.iss.apogee+D.space.iss.perigee)/2).toFixed(0)} km</span></div>` : ''}
+        ${D.space.iss ? `<div class="econ-row"><span class="elabel">ISS</span><span class="eval" style="color:var(--accent)">${D.space.iss.apogee!=null&&D.space.iss.perigee!=null?'ALT '+((D.space.iss.apogee+D.space.iss.perigee)/2).toFixed(0)+' km':'TRACKING'}</span></div>` : ''}
         ${Object.entries(D.space.militaryByCountry||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c,n])=>`<div class="econ-row"><span class="elabel" style="padding-left:8px">${c}</span><span class="eval" style="font-size:10px">${n} mil sats</span></div>`).join('')}
         ${(D.space.signals||[]).length ? `<div style="margin-top:6px;padding:6px 8px;border:1px solid rgba(68,204,255,0.2);background:rgba(68,204,255,0.04);font-family:var(--mono);font-size:9px;color:var(--accent2);line-height:1.5">${D.space.signals.slice(0,2).join('<br>')}</div>` : ''}
       ` : '<div style="font-family:var(--mono);font-size:10px;color:var(--dim)">NO SPACE DATA</div>'}
@@ -1337,11 +1338,14 @@ function mkSparkSvg(values, isGood){
 // === LOWER GRID ===
 function renderLower(){
   const mobile = isMobileLayout();
-  const spread=D.fred.find(f=>f.id==='T10Y2Y');
-  const ff=D.fred.find(f=>f.id==='DFF');
-  const ue=D.bls.find(b=>b.id==='LNS14000000');
-  const cpi=D.bls.find(b=>b.id==='CUUR0000SA0');
-  const payrolls=D.bls.find(b=>b.id==='CES0000000001');
+  // UK indicator lookups for lower grid
+  const gilt2y=D.fred.find(f=>f.id==='IUDMNZC');
+  const gilt10y=D.fred.find(f=>f.id==='IUDMNPY');
+  const spread=gilt2y&&gilt10y?{id:'spread',value:gilt10y.value-gilt2y.value}:null;
+  const ff=D.fred.find(f=>f.id==='IUDBEDR');  // Bank Rate
+  const ue=D.bls.find(b=>b.id==='MGSX');      // UK unemployment
+  const cpi=D.bls.find(b=>b.id==='D7G7');     // UK CPI
+  const earnings=D.bls.find(b=>b.id==='KAC3'); // UK earnings growth
   const gscpi=D.gscpi;
   const mkt=D.markets||{};
 
@@ -1361,10 +1365,9 @@ function renderLower(){
     return `<div class="mc"><div class="ml">${q.name||q.symbol}</div><span class="mv" style="color:${clr}">${q.symbol.includes('BTC')||q.symbol.includes('ETH')?cur+q.price.toLocaleString():cur+q.price}</span><span class="ms" style="color:${clr}">${arrow} ${q.changePct>=0?'+':''}${q.changePct}%</span></div>`;
   };
 
-  // VIX from Yahoo Finance live data (fallback to FRED)
+  // VIX from Yahoo Finance live data (BoE doesn't provide VIX)
   const vixLive = mkt.vix;
-  const vixFred = D.fred.find(f=>f.id==='VIXCLS');
-  const vixVal = vixLive?.value || vixFred?.value;
+  const vixVal = vixLive?.value;
   const vixChg = vixLive?.changePct != null ? `${vixLive.changePct>=0?'+':''}${vixLive.changePct}%` : '';
 
   const metrics=[

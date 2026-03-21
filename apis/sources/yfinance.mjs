@@ -62,28 +62,33 @@ async function fetchQuote(symbol) {
     const change = price && prevClose ? price - prevClose : 0;
     const changePct = prevClose ? (change / prevClose) * 100 : 0;
 
-    // Build 5-day history
-    const history = [];
+    // Build 5-day history (prices converted below after GBX check)
+    const rawHistory = [];
     for (let i = 0; i < timestamps.length; i++) {
       if (closes[i] != null) {
-        history.push({
+        rawHistory.push({
           date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
-          close: Math.round(closes[i] * 100) / 100,
+          close: closes[i],
         });
       }
     }
 
+    // Convert GBX (pence) to GBP for London-listed stocks
+    const isGBX = meta.currency === 'GBp' || meta.currency === 'GBX';
+    const divisor = isGBX ? 100 : 1;
+    const displayCurrency = isGBX ? 'GBP' : (meta.currency || 'GBP');
+
     return {
       symbol,
       name: SYMBOLS[symbol] || meta.shortName || symbol,
-      price: Math.round(price * 100) / 100,
-      prevClose: Math.round((prevClose || 0) * 100) / 100,
-      change: Math.round(change * 100) / 100,
+      price: Math.round((price / divisor) * 100) / 100,
+      prevClose: Math.round(((prevClose || 0) / divisor) * 100) / 100,
+      change: Math.round((change / divisor) * 100) / 100,
       changePct: Math.round(changePct * 100) / 100,
-      currency: meta.currency || 'GBP',
+      currency: displayCurrency,
       exchange: meta.exchangeName || '',
       marketState: meta.marketState || 'UNKNOWN',
-      history,
+      history: rawHistory.map(h => ({ date: h.date, close: Math.round((h.close / divisor) * 100) / 100 })),
     };
   } catch (e) {
     return { symbol, name: SYMBOLS[symbol] || symbol, error: e.message };
