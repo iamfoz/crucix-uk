@@ -624,13 +624,15 @@ function renderLeftRail(){
   ];
   const allNormal=D.nuke.every(s=>!s.anom);
   const nukeHtml=D.nuke.map(s=>`<div class="site-row"><span>${s.site}</span><span class="site-val">${s.n>0?(s.cpm?.toFixed(1)||'--')+' CPM':'No data'}</span></div>`).join('');
-  // UK indicator lookups (BoE series IDs)
+  // UK indicator lookups (BoE series IDs, with Yahoo Finance fallbacks)
   const vix=D.markets?.vix||null; // VIX comes from Yahoo Finance, not BoE
-  const gbpusd=D.fred.find(f=>f.id==='XUDLGBD');
+  const gbpusdBoE=D.fred.find(f=>f.id==='XUDLGBD');
+  const gbpusdYF=(D.markets?.forex||[]).find(q=>q.symbol==='GBPUSD=X');
+  const gbpusd=gbpusdBoE?.value!=null?gbpusdBoE:{value:gbpusdYF?.price||null};
   const m4=D.fred.find(f=>f.id==='LPMAUYN');
   const mort=D.fred.find(f=>f.id==='IUDMNZR');
   const claimant=D.bls.find(b=>b.id==='KA6D');
-  const cpiUK=D.fred.find(f=>f.id==='D7BT');
+  const cpiUK=D.fred.find(f=>f.id==='D7BT')||D.bls.find(b=>b.id==='D7G7');
 
   document.getElementById('leftRail').innerHTML=`
     <div class="g-panel">
@@ -659,7 +661,7 @@ function renderLeftRail(){
         <div class="econ-row"><span class="elabel">Military Sats</span><span class="eval">${D.space.militarySats||0}</span></div>
         <div class="econ-row"><span class="elabel">Starlink</span><span class="eval">${D.space.constellations?.starlink||0}</span></div>
         <div class="econ-row"><span class="elabel">OneWeb</span><span class="eval">${D.space.constellations?.oneweb||0}</span></div>
-        ${D.space.iss ? `<div class="econ-row"><span class="elabel">ISS</span><span class="eval" style="color:var(--accent)">${D.space.iss.apogee!=null&&D.space.iss.perigee!=null?'ALT '+((D.space.iss.apogee+D.space.iss.perigee)/2).toFixed(0)+' km':'TRACKING'}</span></div>` : ''}
+        ${D.space.iss ? `<div class="econ-row"><span class="elabel">ISS</span><span class="eval" style="color:var(--accent)">${D.space.iss.apogee!=null&&D.space.iss.perigee!=null?'ALT '+((D.space.iss.apogee+D.space.iss.perigee)/2).toFixed(0)+' km':D.space.iss.period!=null?((D.space.iss.period).toFixed(1)+' min orbit'):D.space.iss.inclination!=null?(D.space.iss.inclination.toFixed(1)+'° incl'):'ACTIVE'}</span></div>` : ''}
         ${Object.entries(D.space.militaryByCountry||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c,n])=>`<div class="econ-row"><span class="elabel" style="padding-left:8px">${c}</span><span class="eval" style="font-size:10px">${n} mil sats</span></div>`).join('')}
         ${(D.space.signals||[]).length ? `<div style="margin-top:6px;padding:6px 8px;border:1px solid rgba(68,204,255,0.2);background:rgba(68,204,255,0.04);font-family:var(--mono);font-size:9px;color:var(--accent2);line-height:1.5">${D.space.signals.slice(0,2).join('<br>')}</div>` : ''}
       ` : '<div style="font-family:var(--mono);font-size:10px;color:var(--dim)">NO SPACE DATA</div>'}
@@ -842,7 +844,7 @@ function plotMarkers(){
   const labels = [];
 
   // === Air hotspots (green) ===
-  const airCoords=[{lat:30,lon:44},{lat:24,lon:120},{lat:49,lon:32},{lat:57,lon:24},{lat:14,lon:114},{lat:37,lon:127},{lat:25,lon:-80},{lat:4,lon:2},{lat:-34,lon:18},{lat:10,lon:51}];
+  const airCoords=[{lat:55,lon:-3},{lat:56.5,lon:3},{lat:50.25,lon:-1.5},{lat:36,lon:-5.5},{lat:-52,lon:-59.5},{lat:35,lon:33.5},{lat:27,lon:47.5},{lat:48.5,lon:31.5},{lat:56.5,lon:24},{lat:10,lon:47.5},{lat:14,lon:113.5}];
   if(flightsVisible) D.air.forEach((a,i)=>{
     const c=airCoords[i]; if(!c) return;
     points.push({
@@ -1207,7 +1209,7 @@ function plotFlatMarkers(){
     return g;
   };
   // Air
-  const airCoords=[{lat:30,lon:44},{lat:24,lon:120},{lat:49,lon:32},{lat:57,lon:24},{lat:14,lon:114},{lat:37,lon:127},{lat:25,lon:-80},{lat:4,lon:2},{lat:-34,lon:18},{lat:10,lon:51}];
+  const airCoords=[{lat:55,lon:-3},{lat:56.5,lon:3},{lat:50.25,lon:-1.5},{lat:36,lon:-5.5},{lat:-52,lon:-59.5},{lat:35,lon:33.5},{lat:27,lon:47.5},{lat:48.5,lon:31.5},{lat:56.5,lon:24},{lat:10,lon:47.5},{lat:14,lon:113.5}];
   if(flightsVisible){
     D.air.forEach((a,i)=>{
       const c=airCoords[i];if(!c)return;
@@ -1264,7 +1266,7 @@ function plotFlatMarkers(){
   });
   // Flight corridors
   if(flightsVisible){
-    const airCoordsFlight=[{lat:30,lon:44},{lat:24,lon:120},{lat:49,lon:32},{lat:57,lon:24},{lat:14,lon:114},{lat:37,lon:127},{lat:25,lon:-80},{lat:4,lon:2},{lat:-34,lon:18},{lat:10,lon:51}];
+    const airCoordsFlight=[{lat:55,lon:-3},{lat:56.5,lon:3},{lat:50.25,lon:-1.5},{lat:36,lon:-5.5},{lat:-52,lon:-59.5},{lat:35,lon:33.5},{lat:27,lon:47.5},{lat:48.5,lon:31.5},{lat:56.5,lon:24},{lat:10,lon:47.5},{lat:14,lon:113.5}];
     const hubs=[{lat:40.6,lon:-73.8},{lat:51.5,lon:-0.5},{lat:25.3,lon:55.4},{lat:1.4,lon:103.8},{lat:-33.9,lon:151.2},{lat:-23.4,lon:-46.5}];
     const cG=flatG.append('g').attr('class','corridors-layer');
     for(let i=0;i<D.air.length;i++){for(let j=i+1;j<D.air.length;j++){
