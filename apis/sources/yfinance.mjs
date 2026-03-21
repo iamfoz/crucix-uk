@@ -1,31 +1,39 @@
-// Yahoo Finance — Live market quotes (no API key required)
-// Provides real-time prices for stocks, ETFs, crypto, commodities
-// Replaces the need for Alpaca or any paid market data provider
+// Yahoo Finance — Live UK & Global Market Quotes (no API key required)
+// UK-centric: FTSE indices, UK blue chips, Gilts, GBP pairs, plus global commodities/crypto
 
 import { safeFetch } from '../utils/fetch.mjs';
 
 const BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
-// Symbols to track — covers broad market, rates, commodities, crypto, volatility
+// UK-centric symbols
 const SYMBOLS = {
-  // Indexes / ETFs
-  SPY: 'S&P 500',
-  QQQ: 'Nasdaq 100',
-  DIA: 'Dow Jones',
-  IWM: 'Russell 2000',
-  // Rates / Credit
-  TLT: '20Y+ Treasury',
-  HYG: 'High Yield Corp',
-  LQD: 'IG Corporate',
+  // UK Indices
+  '^FTSE': 'FTSE 100',
+  '^FTMC': 'FTSE 250',
+  '^FTAI': 'FTSE AIM All-Share',
+  // UK Blue Chips (London-listed)
+  'SHEL.L': 'Shell',
+  'AZN.L': 'AstraZeneca',
+  'HSBA.L': 'HSBC',
+  'ULVR.L': 'Unilever',
+  'BP.L': 'BP',
+  'LLOY.L': 'Lloyds Banking',
+  'RIO.L': 'Rio Tinto',
+  'BAE.L': 'BAE Systems',
+  // UK Gilts / Bond ETFs
+  'IGLT.L': 'iShares UK Gilts',
+  'INXG.L': 'iShares Index-Linked Gilts',
+  // GBP Currency Pairs
+  'GBPUSD=X': 'GBP/USD',
+  'GBPEUR=X': 'GBP/EUR',
+  // Global Reference (S&P 500 for comparison)
+  'SPY': 'S&P 500',
   // Commodities
   'GC=F': 'Gold',
-  'SI=F': 'Silver',
-  'CL=F': 'WTI Crude',
   'BZ=F': 'Brent Crude',
-  'NG=F': 'Natural Gas',
-  // Crypto
-  'BTC-USD': 'Bitcoin',
-  'ETH-USD': 'Ethereum',
+  // Crypto (GBP-denominated)
+  'BTC-GBP': 'Bitcoin (GBP)',
+  'ETH-GBP': 'Ethereum (GBP)',
   // Volatility
   '^VIX': 'VIX',
 };
@@ -72,7 +80,7 @@ async function fetchQuote(symbol) {
       prevClose: Math.round((prevClose || 0) * 100) / 100,
       change: Math.round(change * 100) / 100,
       changePct: Math.round(changePct * 100) / 100,
-      currency: meta.currency || 'USD',
+      currency: meta.currency || 'GBP',
       exchange: meta.exchangeName || '',
       marketState: meta.marketState || 'UNKNOWN',
       history,
@@ -117,10 +125,12 @@ export async function collect() {
       failed,
       timestamp: new Date().toISOString(),
     },
-    indexes: pickGroup(quotes, ['SPY', 'QQQ', 'DIA', 'IWM']),
-    rates: pickGroup(quotes, ['TLT', 'HYG', 'LQD']),
-    commodities: pickGroup(quotes, ['GC=F', 'SI=F', 'CL=F', 'BZ=F', 'NG=F']),
-    crypto: pickGroup(quotes, ['BTC-USD', 'ETH-USD']),
+    indexes: pickGroup(quotes, ['^FTSE', '^FTMC', '^FTAI', 'SPY']),
+    ukStocks: pickGroup(quotes, ['SHEL.L', 'AZN.L', 'HSBA.L', 'ULVR.L', 'BP.L', 'LLOY.L', 'RIO.L', 'BAE.L']),
+    gilts: pickGroup(quotes, ['IGLT.L', 'INXG.L']),
+    forex: pickGroup(quotes, ['GBPUSD=X', 'GBPEUR=X']),
+    commodities: pickGroup(quotes, ['GC=F', 'BZ=F']),
+    crypto: pickGroup(quotes, ['BTC-GBP', 'ETH-GBP']),
     volatility: pickGroup(quotes, ['^VIX']),
   };
 }

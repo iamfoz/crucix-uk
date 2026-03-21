@@ -1,60 +1,34 @@
-// USAspending — Federal spending, defense contracts, procurement signals
-// No auth required. Updated daily.
+// UK Government Contracts & Defence Spending
+// Replaces USAspending (US Federal spending).
+// Uses Contracts Finder API (Crown Commercial Service) and GOV.UK open data.
+// No auth required.
 
 import { safeFetch, daysAgo } from '../utils/fetch.mjs';
 
-const BASE = 'https://api.usaspending.gov/api/v2';
+const CONTRACTS_FINDER_BASE = 'https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search';
 
-// Award type codes — required by the spending_by_award endpoint
-// Contracts: A=BPA Call, B=Purchase Order, C=Delivery Order, D=Definitive Contract
-// Grants: 02=Block Grant, 03=Formula Grant, 04=Project Grant, 05=Cooperative Agreement
-// Direct payments: 06=Direct Payment (unrestricted), 07=Direct Payment (specified use)
-// Loans: 08=Direct Loan, 09=Guaranteed/Insured Loan
-// IDVs: IDV_A=GWAC, IDV_B=IDC, IDV_B_A=IDC / IDV, IDV_B_B=IDC / Multiple Award,
-//        IDV_B_C=IDC / FSS, IDV_C=FSS, IDV_D=BOA, IDV_E=BPA
-const CONTRACT_CODES = ['A', 'B', 'C', 'D'];
-const ALL_AWARD_CODES = ['A', 'B', 'C', 'D', '02', '03', '04', '05', '06', '07', '08', '09'];
-
-// Search recent awards/contracts
-export async function searchAwards(opts = {}) {
+// Search recent UK government contracts
+export async function searchContracts(opts = {}) {
   const {
-    keywords = ['defense', 'military'],
+    keyword = 'defence',
     limit = 20,
-    sortField = 'Award Amount',
-    order = 'desc',
-    awardTypeCodes = CONTRACT_CODES,
-    days = 30,
+    publishedFrom = daysAgo(30),
+    publishedTo = daysAgo(0),
   } = opts;
 
-  const body = {
-    filters: {
-      keywords,
-      time_period: [{ start_date: daysAgo(days), end_date: daysAgo(0) }],
-      award_type_codes: awardTypeCodes,
-    },
-    fields: [
-      'Award ID',
-      'Recipient Name',
-      'Award Amount',
-      'Description',
-      'Awarding Agency',
-      'Start Date',
-      'Award Type',
-    ],
-    limit,
-    page: 1,
-    sort: sortField,
-    order,
-  };
+  const params = new URLSearchParams({
+    keyword,
+    publishedFrom,
+    publishedTo,
+    size: String(limit),
+  });
 
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
-    const res = await fetch(`${BASE}/search/spending_by_award/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    const res = await fetch(`${CONTRACTS_FINDER_BASE}?${params}`, {
       signal: controller.signal,
+      headers: { 'Accept': 'application/json' },
     });
     clearTimeout(timer);
     if (!res.ok) {
@@ -67,49 +41,65 @@ export async function searchAwards(opts = {}) {
   }
 }
 
-// Get top agencies by spending
-export async function getAgencySpending() {
-  return safeFetch(`${BASE}/references/toptier_agencies/`);
-}
-
-// Search for defense-specific spending
-export async function getDefenseSpending(days = 30) {
-  return searchAwards({
-    keywords: ['defense', 'military', 'missile', 'ammunition', 'aircraft', 'naval'],
+// Search for MoD / defence-specific contracts
+export async function getDefenceContracts(days = 30) {
+  return searchContracts({
+    keyword: 'defence military',
     limit: 20,
-    sortField: 'Award Amount',
-    order: 'desc',
-    awardTypeCodes: CONTRACT_CODES,
-    days,
+    publishedFrom: daysAgo(days),
+    publishedTo: daysAgo(0),
   });
 }
 
-// Briefing
-export async function briefing() {
-  const [defense, agencies] = await Promise.all([
-    getDefenseSpending(14),
-    getAgencySpending(),
-  ]);
+// Search for broader government spending notices
+export async function getGovernmentContracts(days = 30) {
+  return searchContracts({
+    keyword: '',
+    limit: 20,
+    publishedFrom: daysAgo(days),
+    publishedTo: daysAgo(0),
+  });
+}
+
+// Extract contract info from OCDS release format
+function extractContract(release) {
+  const tender = release?.tender || {};
+  const awards = release?.awards || [];
+  const buyer = release?.buyer || {};
+
+  const award = awards[0] || {};
+  const supplier = award?.suppliers?.[0] || {};
 
   return {
-    source: 'USAspending',
+    title: tender.title || release?.tag?.[0] || 'Untitled',
+    description: (tender.description || '').slice(0, 300),
+    buyer: buyer.name || 'Unknown',
+    value: tender.value?.amount || award?.value?.amount || null,
+    currency: tender.value?.currency || award?.value?.currency || 'GBP',
+    supplier: supplier.name || null,
+    publishedDate: release?.date || release?.publishedDate || null,
+    status: tender.status || null,
+    region: tender.deliveryLocation?.description || null,
+  };
+}
+
+// Briefing — recent UK government and defence contracts
+export async function briefing() {
+  const [defence, general] = await Promise.all([
+    getDefenceContracts(14),
+    getGovernmentContracts(14),
+  ]);
+
+  const defenceReleases = defence?.releases || [];
+  const generalReleases = general?.releases || [];
+
+  return {
+    source: 'UK Contracts Finder',
     timestamp: new Date().toISOString(),
-    recentDefenseContracts: (defense?.results || []).slice(0, 10).map(r => ({
-      awardId: r['Award ID'],
-      recipient: r['Recipient Name'],
-      amount: r['Award Amount'],
-      description: r['Description'],
-      agency: r['Awarding Agency'],
-      date: r['Start Date'],
-      type: r['Award Type'],
-    })),
-    topAgencies: (agencies?.results || []).slice(0, 10).map(a => ({
-      name: a.agency_name,
-      budget: a.budget_authority_amount,
-      obligations: a.obligated_amount,
-      outlays: a.outlay_amount,
-    })),
-    ...(defense?.error ? { defenseError: defense.error } : {}),
+    recentDefenceContracts: defenceReleases.slice(0, 10).map(extractContract),
+    recentGovernmentContracts: generalReleases.slice(0, 10).map(extractContract),
+    ...(defence?.error ? { defenceError: defence.error } : {}),
+    ...(general?.error ? { generalError: general.error } : {}),
   };
 }
 

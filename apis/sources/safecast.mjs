@@ -1,5 +1,6 @@
 // Safecast — Global radiation monitoring (150M+ readings)
 // No auth required. CC0 public domain. Citizen-science network.
+// UK-centric: monitors UK nuclear sites + key global sites of UK interest.
 
 import { safeFetch } from '../utils/fetch.mjs';
 
@@ -26,14 +27,19 @@ export async function getMeasurements(opts = {}) {
   return safeFetch(`${BASE}/measurements.json?${params}`);
 }
 
-// Key nuclear sites to monitor
+// Key nuclear sites to monitor — UK sites + sites of UK strategic interest
 const NUCLEAR_SITES = {
-  zaporizhzhia: { lat: 47.51, lon: 34.58, label: 'Zaporizhzhia NPP (Ukraine)', radius: 100 },
-  chernobyl: { lat: 51.39, lon: 30.1, label: 'Chernobyl Exclusion Zone', radius: 50 },
-  bushehr: { lat: 28.83, lon: 50.89, label: 'Bushehr NPP (Iran)', radius: 100 },
-  yongbyon: { lat: 39.8, lon: 125.75, label: 'Yongbyon (North Korea)', radius: 100 },
-  fukushima: { lat: 37.42, lon: 141.03, label: 'Fukushima Daiichi', radius: 50 },
-  dimona: { lat: 31.0, lon: 35.15, label: 'Dimona (Israel)', radius: 100 },
+  // UK operational & decommissioning sites
+  sellafield:     { lat: 54.42, lon: -3.50,  label: 'Sellafield (UK)', radius: 50 },
+  hinkleyPoint:   { lat: 51.21, lon: -3.13,  label: 'Hinkley Point C (UK)', radius: 50 },
+  sizewell:       { lat: 52.22, lon: 1.62,   label: 'Sizewell (UK)', radius: 50 },
+  faslane:        { lat: 56.07, lon: -4.82,  label: 'HMNB Clyde / Faslane (UK Trident)', radius: 50 },
+  aldermaston:    { lat: 51.37, lon: -1.15,  label: 'AWE Aldermaston (UK)', radius: 50 },
+  // Near-neighbours / European sites of UK concern
+  gravelines:     { lat: 51.02, lon: 2.11,   label: 'Gravelines NPP (France — nearest to UK)', radius: 50 },
+  // Global flashpoints
+  zaporizhzhia:   { lat: 47.51, lon: 34.58,  label: 'Zaporizhzhia NPP (Ukraine)', radius: 100 },
+  yongbyon:       { lat: 39.8,  lon: 125.75, label: 'Yongbyon (North Korea)', radius: 100 },
 };
 
 // Briefing — check radiation levels near key nuclear sites

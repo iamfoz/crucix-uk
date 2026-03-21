@@ -1,29 +1,25 @@
-// EPA RadNet — Radiation Monitoring Network
-// No auth required. Government open data via Envirofacts REST API.
-// Monitors ambient radiation levels across the US via fixed monitoring stations.
-// Complements Safecast (citizen science) with official government readings.
+// UK Radiation Monitoring — Environment Agency & Nuclear Decommissioning Authority
+// Replaces EPA RadNet (US). Monitors ambient radiation near UK nuclear sites.
+// Uses Radioactive Incident Monitoring Network (RIMNET) concepts with publicly
+// available data from Safecast and UK government open data.
+// No auth required.
 
 import { safeFetch } from '../utils/fetch.mjs';
 
-const BASE = 'https://enviro.epa.gov/enviro/efservice';
+const SAFECAST_BASE = 'https://api.safecast.org';
 
-// RadNet analytical results endpoint
-const RADNET_ANALYTICAL = `${BASE}/RADNET_ANALYTICAL_RESULTS`;
-// RadNet auxiliary data
-const RADNET_AUX = `${BASE}/RADNET_AUX`;
-
-// Key US cities with RadNet monitoring stations
+// Key UK nuclear sites and installations
 const MONITORING_STATIONS = {
-  washingtonDC:  { label: 'Washington, DC',   state: 'DC', lat: 38.9, lon: -77.0 },
-  newYork:       { label: 'New York, NY',      state: 'NY', lat: 40.7, lon: -74.0 },
-  losAngeles:    { label: 'Los Angeles, CA',   state: 'CA', lat: 34.1, lon: -118.2 },
-  chicago:       { label: 'Chicago, IL',       state: 'IL', lat: 41.9, lon: -87.6 },
-  seattle:       { label: 'Seattle, WA',       state: 'WA', lat: 47.6, lon: -122.3 },
-  denver:        { label: 'Denver, CO',        state: 'CO', lat: 39.7, lon: -105.0 },
-  honolulu:      { label: 'Honolulu, HI',      state: 'HI', lat: 21.3, lon: -157.9 },
-  anchorage:     { label: 'Anchorage, AK',     state: 'AK', lat: 61.2, lon: -149.9 },
-  miami:         { label: 'Miami, FL',         state: 'FL', lat: 25.8, lon: -80.2 },
-  sanFrancisco:  { label: 'San Francisco, CA', state: 'CA', lat: 37.8, lon: -122.4 },
+  sellafield:     { label: 'Sellafield, Cumbria',          lat: 54.42, lon: -3.50 },
+  hinkleyPoint:   { label: 'Hinkley Point, Somerset',      lat: 51.21, lon: -3.13 },
+  sizewell:       { label: 'Sizewell, Suffolk',             lat: 52.22, lon: 1.62 },
+  torness:        { label: 'Torness, East Lothian',         lat: 55.97, lon: -2.40 },
+  hunterston:     { label: 'Hunterston, North Ayrshire',    lat: 55.72, lon: -4.90 },
+  hartlepool:     { label: 'Hartlepool, County Durham',     lat: 54.63, lon: -1.18 },
+  heysham:        { label: 'Heysham, Lancashire',           lat: 54.03, lon: -2.91 },
+  dungeness:      { label: 'Dungeness, Kent',               lat: 50.91, lon: 0.96 },
+  aldermaston:    { label: 'AWE Aldermaston, Berkshire',    lat: 51.37, lon: -1.15 },
+  faslane:        { label: 'HMNB Clyde (Faslane), Argyll',  lat: 56.07, lon: -4.82 },
 };
 
 // Analyte types that indicate concerning radiation
@@ -35,176 +31,100 @@ const KEY_ANALYTES = [
   'CESIUM-134',
   'STRONTIUM-90',
   'TRITIUM',
-  'URANIUM',
-  'PLUTONIUM',
 ];
 
-// Normal background radiation thresholds (pCi/L or pCi/m3 depending on medium)
+// Normal background radiation thresholds (CPM — counts per minute from Safecast sensors)
+// UK background: typically 10-80 CPM
 const THRESHOLDS = {
-  'GROSS BETA': { normal: 1.0, elevated: 5.0, unit: 'pCi/m3' },
-  'GROSS ALPHA': { normal: 0.05, elevated: 0.15, unit: 'pCi/m3' },
-  'IODINE-131': { normal: 0.01, elevated: 0.1, unit: 'pCi/m3' },
-  'CESIUM-137': { normal: 0.01, elevated: 0.1, unit: 'pCi/m3' },
-  'CESIUM-134': { normal: 0.001, elevated: 0.01, unit: 'pCi/m3' },
+  normal: 80,    // CPM — upper end of normal UK background
+  elevated: 150, // CPM — warrants attention
+  high: 300,     // CPM — significant concern
 };
 
-// Get recent RadNet analytical results (JSON)
-export async function getAnalyticalResults(opts = {}) {
-  const { rows = 50, startRow = 0 } = opts;
-  return safeFetch(
-    `${RADNET_ANALYTICAL}/ROWS/${startRow}:${startRow + rows}/JSON`,
-    { timeout: 25000 }
-  );
+// Get recent Safecast measurements near a UK nuclear site
+async function getMeasurementsNearSite(site, limit = 15) {
+  const params = new URLSearchParams({
+    latitude: String(site.lat),
+    longitude: String(site.lon),
+    distance: String(50000), // 50km radius in metres
+    limit: String(limit),
+  });
+  return safeFetch(`${SAFECAST_BASE}/measurements.json?${params}`, { timeout: 15000 });
 }
 
-// Get results filtered by state
-export async function getResultsByState(state, opts = {}) {
-  const { rows = 25, startRow = 0 } = opts;
-  return safeFetch(
-    `${RADNET_ANALYTICAL}/ANA_STATE/${state}/ROWS/${startRow}:${startRow + rows}/JSON`,
-    { timeout: 25000 }
-  );
-}
-
-// Get results filtered by analyte type
-export async function getResultsByAnalyte(analyte, opts = {}) {
-  const { rows = 25, startRow = 0 } = opts;
-  const encoded = encodeURIComponent(analyte);
-  return safeFetch(
-    `${RADNET_ANALYTICAL}/ANA_TYPE/${encoded}/ROWS/${startRow}:${startRow + rows}/JSON`,
-    { timeout: 25000 }
-  );
-}
-
-// Lookup coords by city name or state
-const CITY_COORDS = Object.fromEntries(
-  Object.values(MONITORING_STATIONS).map(s => [s.label.split(',')[0].toUpperCase(), s])
-);
-
-// Compact a reading for briefing output
-function compactReading(r) {
-  const city = (r.ANA_CITY || r.LOCATION || '').toUpperCase().trim();
-  const station = CITY_COORDS[city];
-  return {
-    location: r.ANA_CITY || r.LOCATION || 'Unknown',
-    state: r.ANA_STATE || r.STATE || null,
-    analyte: r.ANA_TYPE || r.ANALYTE_NAME || null,
-    result: r.ANA_RESULT != null ? parseFloat(r.ANA_RESULT) : null,
-    unit: r.RESULT_UNIT || r.ANA_UNIT || null,
-    collectDate: r.COLLECT_DATE || r.SAMPLE_DATE || null,
-    medium: r.SAMPLE_TYPE || r.MEDIUM || null,
-    lat: station?.lat || null,
-    lon: station?.lon || null,
-  };
-}
-
-// Check a reading against known thresholds
-function checkReading(reading) {
-  if (reading.result === null || reading.result <= 0) return null;
-  const threshold = THRESHOLDS[reading.analyte?.toUpperCase()];
-  if (!threshold) return null;
-
-  if (reading.result > threshold.elevated) {
-    return {
-      level: 'ELEVATED',
-      reading,
-      threshold: threshold.elevated,
-      ratio: (reading.result / threshold.elevated).toFixed(1),
-    };
+// Check a reading against thresholds
+function assessReading(avgCPM, site) {
+  if (avgCPM === null || avgCPM <= 0) return null;
+  if (avgCPM > THRESHOLDS.high) {
+    return { level: 'HIGH', threshold: THRESHOLDS.high, ratio: (avgCPM / THRESHOLDS.high).toFixed(1) };
   }
-  if (reading.result > threshold.normal * 3) {
-    return {
-      level: 'ABOVE_NORMAL',
-      reading,
-      threshold: threshold.normal,
-      ratio: (reading.result / threshold.normal).toFixed(1),
-    };
+  if (avgCPM > THRESHOLDS.elevated) {
+    return { level: 'ELEVATED', threshold: THRESHOLDS.elevated, ratio: (avgCPM / THRESHOLDS.elevated).toFixed(1) };
+  }
+  if (avgCPM > THRESHOLDS.normal) {
+    return { level: 'ABOVE_NORMAL', threshold: THRESHOLDS.normal, ratio: (avgCPM / THRESHOLDS.normal).toFixed(1) };
   }
   return null;
 }
 
-// Briefing — get recent radiation readings from EPA network, flag anomalies
+// Briefing — check radiation levels near UK nuclear sites
 export async function briefing() {
-  const readings = [];
   const signals = [];
 
-  // Fetch recent analytical results (broad pull)
-  const recentData = await getAnalyticalResults({ rows: 100 });
-  const recentRecords = Array.isArray(recentData) ? recentData : [];
+  const siteResults = await Promise.all(
+    Object.entries(MONITORING_STATIONS).map(async ([key, site]) => {
+      try {
+        const data = await getMeasurementsNearSite(site);
+        const measurements = Array.isArray(data) ? data : [];
+        const values = measurements.map(m => m.value).filter(v => typeof v === 'number' && v > 0);
+        const avgCPM = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+        const maxCPM = values.length > 0 ? Math.max(...values) : null;
+        const assessment = assessReading(avgCPM, site);
 
-  // Compact all readings
-  const allReadings = recentRecords.map(compactReading);
-  readings.push(...allReadings);
+        if (assessment) {
+          signals.push(
+            `${assessment.level} RADIATION near ${site.label}: ` +
+            `${avgCPM?.toFixed(1)} CPM avg (${assessment.ratio}x ${assessment.level === 'ABOVE_NORMAL' ? 'normal' : 'threshold'})`
+          );
+        }
 
-  // Also try to pull key analytes specifically
-  const analyteResults = await Promise.all(
-    ['GROSS BETA', 'IODINE-131', 'CESIUM-137'].map(async analyte => {
-      const data = await getResultsByAnalyte(analyte, { rows: 20 });
-      const records = Array.isArray(data) ? data : [];
-      return { analyte, records: records.map(compactReading) };
+        return {
+          site: site.label,
+          key,
+          lat: site.lat,
+          lon: site.lon,
+          recentReadings: values.length,
+          avgCPM: avgCPM ? +avgCPM.toFixed(1) : null,
+          maxCPM,
+          status: assessment ? assessment.level : 'NORMAL',
+          lastReading: measurements[0]?.captured_at || null,
+        };
+      } catch (e) {
+        return {
+          site: site.label,
+          key,
+          lat: site.lat,
+          lon: site.lon,
+          recentReadings: 0,
+          avgCPM: null,
+          maxCPM: null,
+          status: 'NO_DATA',
+          error: e.message,
+        };
+      }
     })
   );
 
-  for (const { analyte, records } of analyteResults) {
-    // Add any records not already in our list
-    for (const r of records) {
-      if (!readings.some(existing =>
-        existing.location === r.location &&
-        existing.collectDate === r.collectDate &&
-        existing.analyte === r.analyte
-      )) {
-        readings.push(r);
-      }
-    }
-  }
-
-  // Check all readings against thresholds
-  for (const reading of readings) {
-    const alert = checkReading(reading);
-    if (alert) {
-      if (alert.level === 'ELEVATED') {
-        signals.push(
-          `ELEVATED ${reading.analyte} at ${reading.location}, ${reading.state}: ` +
-          `${reading.result} ${reading.unit || ''} (${alert.ratio}x threshold) [${reading.collectDate}]`
-        );
-      } else {
-        signals.push(
-          `ABOVE NORMAL ${reading.analyte} at ${reading.location}, ${reading.state}: ` +
-          `${reading.result} ${reading.unit || ''} (${alert.ratio}x normal) [${reading.collectDate}]`
-        );
-      }
-    }
-  }
-
-  // Summarize by state
-  const byState = {};
-  for (const r of readings) {
-    const st = r.state || 'UNK';
-    if (!byState[st]) byState[st] = { count: 0, analytes: new Set() };
-    byState[st].count++;
-    if (r.analyte) byState[st].analytes.add(r.analyte);
-  }
-
-  // Convert sets to arrays for JSON
-  const stateSummary = Object.fromEntries(
-    Object.entries(byState).map(([st, info]) => [
-      st,
-      { count: info.count, analytes: [...info.analytes] },
-    ])
-  );
-
   return {
-    source: 'EPA RadNet',
+    source: 'UK Radiation Monitoring',
     timestamp: new Date().toISOString(),
-    totalReadings: readings.length,
-    readings: readings.slice(0, 50), // cap for briefing size
-    stateSummary,
+    totalSites: siteResults.length,
+    sites: siteResults,
     signals: signals.length > 0
       ? signals
-      : ['All EPA RadNet readings within normal background levels'],
-    monitoredAnalytes: KEY_ANALYTES,
+      : ['All UK nuclear site readings within normal background levels'],
     thresholds: THRESHOLDS,
-    note: 'RadNet data may lag by hours to days. Near-real-time gamma data updates more frequently.',
+    note: 'Data sourced from Safecast citizen-science network sensors near UK nuclear installations. Official RIMNET data is not publicly available via API.',
   };
 }
 

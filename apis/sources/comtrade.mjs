@@ -1,7 +1,7 @@
-// UN Comtrade — Global Trade Data
+// UN Comtrade — Global Trade Data (UK-Centric)
 // Public preview endpoint requires no key. Full API needs free registration.
-// Tracks commodity trade flows between nations: crude oil, gas, gold, semiconductors, arms.
-// Reporter codes: 842 (US), 156 (China), 276 (Germany), 392 (Japan), 826 (UK), 643 (Russia), 356 (India)
+// Tracks commodity trade flows — focused on UK (826) as primary reporter.
+// Reporter codes: 826 (UK), 842 (US), 156 (China), 276 (Germany), 392 (Japan), 643 (Russia), 356 (India)
 
 import { safeFetch, daysAgo, today } from '../utils/fetch.mjs';
 
@@ -19,26 +19,30 @@ const STRATEGIC_COMMODITIES = {
   '2701': 'Coal',
   '7601': 'Aluminium (unwrought)',
   '2612': 'Uranium & Thorium Ores',
+  '8703': 'Motor Vehicles',
+  '3004': 'Pharmaceutical Products',
 };
 
-// Key reporter/partner country codes
+// Key reporter/partner country codes — UK-centric view
 const COUNTRIES = {
+  826: 'United Kingdom',
   842: 'United States',
   156: 'China',
   276: 'Germany',
-  392: 'Japan',
-  826: 'United Kingdom',
-  643: 'Russia',
-  356: 'India',
-  410: 'South Korea',
-  158: 'Taiwan',
+  250: 'France',
+  528: 'Netherlands',
+  372: 'Ireland',
   380: 'Italy',
+  356: 'India',
+  392: 'Japan',
+  578: 'Norway',
+  56:  'Belgium',
 };
 
 // Get trade data for a specific reporter, commodity, and period
 export async function getTradeData(opts = {}) {
   const {
-    reporterCode = 842,        // default: US
+    reporterCode = 826,        // default: UK
     period = new Date().getFullYear(),
     cmdCode = '2709',          // default: crude oil
     flowCode = 'M',            // M = imports, X = exports
@@ -115,8 +119,8 @@ function detectAnomalies(tradeRecords) {
     tradeRecords.forEach(r => {
       if (typeof r.value === 'number' && r.value > avg + 2 * stdDev) {
         signals.push(
-          `OUTLIER: ${r.commodity} trade with ${r.partner} = $${(r.value / 1e9).toFixed(2)}B ` +
-          `(mean: $${(avg / 1e9).toFixed(2)}B)`
+          `OUTLIER: ${r.commodity} trade with ${r.partner} = £${(r.value / 1e9).toFixed(2)}B ` +
+          `(mean: £${(avg / 1e9).toFixed(2)}B)`
         );
       }
     });
@@ -125,14 +129,14 @@ function detectAnomalies(tradeRecords) {
   return signals;
 }
 
-// Briefing — check recent trade data for key commodities, detect anomalies
+// Briefing — check UK trade data for key commodities, detect anomalies
 export async function briefing() {
   const currentYear = new Date().getFullYear();
   const prevYear = currentYear - 1;
 
-  // Key combinations to check: US imports of strategic commodities
-  const keyCommodities = ['2709', '2711', '7108', '8542', '93'];
-  const keyReporters = [842, 156]; // US, China
+  // Key combinations: UK imports of strategic commodities + China for comparison
+  const keyCommodities = ['2709', '2711', '7108', '8542', '93', '3004'];
+  const keyReporters = [826, 156]; // UK, China
 
   const tradeFlows = [];
   const signals = [];
@@ -188,7 +192,7 @@ export async function briefing() {
       ? signals
       : ['No significant trade anomalies detected in sampled commodities'],
     status: tradeFlows.length > 0 ? 'ok' : 'no_data',
-    note: 'Comtrade data often lags 1-2 months. Recent periods may be incomplete.',
+    note: 'UK-centric trade view. Comtrade data often lags 1-2 months. Recent periods may be incomplete.',
     coveredCommodities: STRATEGIC_COMMODITIES,
     coveredCountries: COUNTRIES,
   };

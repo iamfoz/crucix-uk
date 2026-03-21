@@ -1,74 +1,114 @@
-// US Treasury Fiscal Data — Government debt, spending, yields
-// No auth required. Daily updates.
+// UK Debt Management Office & HM Treasury — Government debt, gilt yields, fiscal data
+// Replaces US Treasury Fiscal Data. No auth required.
 
 import { safeFetch, today, daysAgo } from '../utils/fetch.mjs';
 
-const BASE = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service';
+const DMO_BASE = 'https://www.dmo.gov.uk/data';
 
-// Debt to the Penny (daily national debt)
-export async function getDebtToThePenny(days = 30) {
+// Fetch UK gilt yield data from DMO
+async function getGiltYields() {
+  // DMO provides gilt data via their website; we use the XML/JSON feeds
+  // Fall back to BoE gilt yield data which is more reliably available as JSON
+  const endDate = today();
+  const startDate = daysAgo(30);
   const params = new URLSearchParams({
-    'fields': 'record_date,tot_pub_debt_out_amt,intragov_hold_amt,debt_held_public_amt',
-    'sort': '-record_date',
-    'page[size]': '30',
-    'filter': `record_date:gte:${daysAgo(days)}`,
+    'Datefrom': startDate.replace(/-/g, '/').replace(/^(\d{4})\/(\d{2})\/(\d{2})$/, '$3/$2/$1'),
+    'Dateto': endDate.replace(/-/g, '/').replace(/^(\d{4})\/(\d{2})\/(\d{2})$/, '$3/$2/$1'),
+    'SeriesCodes': 'IUDMNZC,IUDMNPY,IUDMNOL',
+    'CSVF': 'TN',
+    'UsingCodes': 'Y',
+    'VPD': 'Y',
+    'VFD': 'N',
   });
-  return safeFetch(`${BASE}/v2/accounting/od/debt_to_penny?${params}`);
+  return safeFetch(
+    `https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?${params}`,
+    { raw: true }
+  );
 }
 
-// Daily Treasury Statement (government cash flow)
-export async function getDailyStatement(days = 7) {
-  const params = new URLSearchParams({
-    'fields': 'record_date,account_type,close_today_bal',
-    'sort': '-record_date',
-    'page[size]': '20',
-    'filter': `record_date:gte:${daysAgo(days)}`,
-  });
-  return safeFetch(`${BASE}/v1/accounting/dts/deposits_withdrawals_operating_cash?${params}`);
+// Parse BoE CSV for gilt yields
+function parseGiltYields(text) {
+  if (!text || typeof text !== 'string') return [];
+  const lines = text.split('\n').filter(l => l.trim());
+  const records = [];
+  for (const line of lines) {
+    // Format: DATE, 2Y_YIELD, 10Y_YIELD, 30Y_YIELD
+    const parts = line.split(',').map(s => s.trim());
+    const dateMatch = parts[0]?.match(/\d{2}\s\w{3}\s\d{4}/);
+    if (dateMatch) {
+      const values = parts.slice(1).map(v => parseFloat(v)).filter(v => !isNaN(v));
+      if (values.length > 0) {
+        records.push({
+          date: dateMatch[0],
+          gilt2y: values[0] ?? null,
+          gilt10y: values[1] ?? null,
+          gilt30y: values[2] ?? null,
+        });
+      }
+    }
+  }
+  records.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return records;
 }
 
-// Treasury yield curves (average interest rates on debt)
-export async function getAvgInterestRates() {
-  const params = new URLSearchParams({
-    'fields': 'record_date,security_desc,avg_interest_rate_amt',
-    'sort': '-record_date',
-    'page[size]': '50',
-    'filter': `record_date:gte:${daysAgo(30)}`,
-  });
-  return safeFetch(`${BASE}/v2/accounting/od/avg_interest_rates?${params}`);
+// Fetch UK government debt data from ONS
+async function getUKDebt() {
+  // ONS public finance series: RUTN = PSND ex (public sector net debt excluding banks)
+  return safeFetch(
+    `https://api.ons.gov.uk/timeseries/RUTN/dataset/PUSF/data`,
+    { timeout: 15000 }
+  );
 }
 
-// Briefing — key treasury data
+// Briefing — UK government debt and gilt yields
 export async function briefing() {
-  const [debt, rates] = await Promise.all([
-    getDebtToThePenny(14),
-    getAvgInterestRates(),
+  const [giltText, debtData] = await Promise.all([
+    getGiltYields(),
+    getUKDebt(),
   ]);
 
-  const debtData = debt?.data || [];
-  const latestDebt = debtData[0];
+  const giltRecords = parseGiltYields(giltText);
   const signals = [];
 
+  // Process gilt yields
+  const latestGilt = giltRecords[0];
+  if (latestGilt) {
+    if (latestGilt.gilt10y > 5) {
+      signals.push(`10-Year Gilt yield elevated at ${latestGilt.gilt10y}%`);
+    }
+    if (latestGilt.gilt2y && latestGilt.gilt10y && latestGilt.gilt2y > latestGilt.gilt10y) {
+      signals.push(`UK GILT CURVE INVERTED: 2Y (${latestGilt.gilt2y}%) > 10Y (${latestGilt.gilt10y}%)`);
+    }
+  }
+
+  // Process UK debt
+  const months = debtData?.months || debtData?.quarters || [];
+  const sortedDebt = [...months]
+    .filter(m => m.value !== '' && m.value !== null)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .slice(0, 5);
+
+  const latestDebt = sortedDebt[0];
   if (latestDebt) {
-    const totalDebt = parseFloat(latestDebt.tot_pub_debt_out_amt);
-    if (totalDebt > 36_000_000_000_000) {
-      signals.push(`National debt at $${(totalDebt / 1e12).toFixed(2)}T`);
+    const debtPct = parseFloat(latestDebt.value);
+    if (!isNaN(debtPct) && debtPct > 100) {
+      signals.push(`UK public sector net debt at ${debtPct}% of GDP`);
     }
   }
 
   return {
-    source: 'US Treasury',
+    source: 'HM Treasury / DMO',
     timestamp: new Date().toISOString(),
-    debt: debtData.slice(0, 5).map(d => ({
-      date: d.record_date,
-      totalDebt: d.tot_pub_debt_out_amt,
-      publicDebt: d.debt_held_public_amt,
-      intragovDebt: d.intragov_hold_amt,
+    giltYields: giltRecords.slice(0, 10).map(r => ({
+      date: r.date,
+      gilt2y: r.gilt2y,
+      gilt10y: r.gilt10y,
+      gilt30y: r.gilt30y,
     })),
-    interestRates: (rates?.data || []).slice(0, 20).map(r => ({
-      date: r.record_date,
-      security: r.security_desc,
-      rate: r.avg_interest_rate_amt,
+    debt: sortedDebt.map(d => ({
+      date: d.date || d.label,
+      value: d.value,
+      unit: 'percent of GDP',
     })),
     signals,
   };
