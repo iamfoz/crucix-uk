@@ -37,7 +37,9 @@ const NUCLEAR_SITES = {
   aldermaston:    { lat: 51.37, lon: -1.15,  label: 'AWE Aldermaston (UK)', radius: 50 },
   // Near-neighbours / European sites of UK concern
   gravelines:     { lat: 51.02, lon: 2.11,   label: 'Gravelines NPP (France — nearest to UK)', radius: 50 },
-  // Global flashpoints
+  // Global flashpoints & exclusion zones
+  chernobyl:      { lat: 51.39, lon: 30.10,  label: 'Chernobyl Exclusion Zone (Ukraine)', radius: 50 },
+  fukushima:      { lat: 37.42, lon: 141.03, label: 'Fukushima Daiichi (Japan)', radius: 50 },
   zaporizhzhia:   { lat: 47.51, lon: 34.58,  label: 'Zaporizhzhia NPP (Ukraine)', radius: 100 },
   yongbyon:       { lat: 39.8,  lon: 125.75, label: 'Yongbyon (North Korea)', radius: 100 },
 };

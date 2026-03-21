@@ -264,11 +264,13 @@ export async function fetchAllNews() {
 // === Leverageable Ideas from Signals ===
 export function generateIdeas(V2) {
   const ideas = [];
-  const vix = V2.fred.find(f => f.id === 'VIXCLS');
-  const hy = V2.fred.find(f => f.id === 'BAMLH0A0HYM2');
-  const spread = V2.fred.find(f => f.id === 'T10Y2Y');
+  // UK indicator lookups (BoE series IDs)
+  const vix = V2.markets?.vix ? { value: V2.markets.vix.value } : null; // VIX from Yahoo Finance
+  const gilt2y = V2.fred.find(f => f.id === 'IUDMNZC');
+  const gilt10y = V2.fred.find(f => f.id === 'IUDMNPY');
+  const spread = gilt2y && gilt10y ? { id: 'spread', value: gilt10y.value - gilt2y.value } : null;
 
-  if (V2.tg.urgent.length > 3 && V2.energy.wti > 68) {
+  if (V2.tg.urgent.length > 3 && V2.energy.brent > 68) {
     ideas.push({
       title: 'Conflict-Energy Nexus Active',
       text: `${V2.tg.urgent.length} urgent conflict signals with Brent at $${V2.energy.brent}/bbl. Geopolitical risk premium may expand. Consider energy exposure.`,
@@ -303,8 +305,8 @@ export function generateIdeas(V2) {
   }
   if (spread) {
     ideas.push({
-      title: spread.value > 0 ? 'Yield Curve Normalizing' : 'Yield Curve Inverted',
-      text: `10Y-2Y spread at ${spread.value.toFixed(2)}. ${spread.value > 0 ? 'Recession signal fading — cyclical rotation possible.' : 'Inversion persists — defensive positioning warranted.'}`,
+      title: spread.value > 0 ? 'Gilt Curve Normalising' : 'Gilt Curve Inverted',
+      text: `10Y-2Y gilt spread at ${spread.value.toFixed(2)}%. ${spread.value > 0 ? 'UK recession signal fading — cyclical rotation possible.' : 'Inversion persists — defensive positioning warranted.'}`,
       type: 'watch', confidence: 'Medium', horizon: 'strategic'
     });
   }
@@ -325,15 +327,15 @@ export function generateIdeas(V2) {
     });
   }
 
-  // Yield Curve + Labor Interaction
-  const unemployment = V2.bls.find(b => b.id === 'LNS14000000' || b.id === 'UNRATE');
-  const payrolls = V2.bls.find(b => b.id === 'CES0000000001' || b.id === 'PAYEMS');
-  if (spread && unemployment && payrolls) {
-    const weakLabor = (unemployment.value > 4.3) || (payrolls.momChange && payrolls.momChange < -50);
-    if (spread.value > 0.3 && weakLabor) {
+  // Gilt Curve + Labour Market Interaction
+  const unemployment = V2.bls.find(b => b.id === 'MGSX');
+  const earnings = V2.bls.find(b => b.id === 'KAC3');
+  if (spread && unemployment) {
+    const weakLabour = (unemployment.value > 5.0) || (earnings && earnings.value < 1.0);
+    if (spread.value > 0.3 && weakLabour) {
       ideas.push({
-        title: 'Steepening Curve Meets Weak Labor',
-        text: `10Y-2Y at ${spread.value.toFixed(2)} + UE ${unemployment.value}%. Curve steepening with deteriorating employment = recession positioning warranted.`,
+        title: 'Gilt Curve Steepening Meets Weak Labour',
+        text: `10Y-2Y gilt spread at ${spread.value.toFixed(2)} + UK unemployment ${unemployment.value}%. Curve steepening with deteriorating employment = defensive positioning warranted.`,
         type: 'hedge', confidence: 'High', horizon: 'tactical'
       });
     }
@@ -363,37 +365,27 @@ export function generateIdeas(V2) {
     });
   }
 
-  // HY Spread + VIX Divergence
-  if (hy && vix) {
-    const hyWide = hy.value > 3.5;
-    const vixLow = vix.value < 18;
-    const hyTight = hy.value < 2.5;
-    const vixHigh = vix.value > 25;
-    if (hyWide && vixLow) {
+  // VIX + Gilt Spread Divergence
+  if (spread && vix) {
+    if (spread.value < 0 && vix.value < 18) {
       ideas.push({
-        title: 'Credit Stress Ignored by Equity Vol',
-        text: `HY spread ${hy.value.toFixed(1)}% (wide) but VIX only ${vix.value.toFixed(0)} (complacent). Equity may be underpricing credit deterioration.`,
-        type: 'watch', confidence: 'Medium', horizon: 'tactical'
-      });
-    } else if (hyTight && vixHigh) {
-      ideas.push({
-        title: 'Equity Fear Exceeds Credit Stress',
-        text: `VIX at ${vix.value.toFixed(0)} but HY spread only ${hy.value.toFixed(1)}%. Equity vol may be overshooting — credit markets aren't confirming.`,
+        title: 'Gilt Inversion Ignored by Equity Vol',
+        text: `Gilt curve inverted (10Y-2Y: ${spread.value.toFixed(2)}) but VIX only ${vix.value.toFixed(0)} — equities complacent despite UK recession signal.`,
         type: 'watch', confidence: 'Medium', horizon: 'tactical'
       });
     }
   }
 
   // Supply Chain + Inflation Pipeline
-  const ppi = V2.bls.find(b => b.id === 'WPUFD49104' || b.id === 'PCU--PCU--');
-  const cpi = V2.bls.find(b => b.id === 'CUUR0000SA0' || b.id === 'CPIAUCSL');
-  if (ppi && cpi && V2.gscpi) {
+  const ukCpi = V2.bls.find(b => b.id === 'D7G7');
+  const ukCpih = V2.bls.find(b => b.id === 'D7G8');
+  if (ukCpi && V2.gscpi) {
     const supplyPressure = V2.gscpi.value > 0.5;
-    const ppiRising = ppi.momChangePct > 0.3;
-    if (supplyPressure && ppiRising) {
+    const cpiRising = ukCpi.value > 4;
+    if (supplyPressure && cpiRising) {
       ideas.push({
         title: 'Inflation Pipeline Building Pressure',
-        text: `GSCPI at ${V2.gscpi.value.toFixed(2)} (${V2.gscpi.interpretation}) + PPI momentum +${ppi.momChangePct?.toFixed(1)}%. Input costs flowing through — CPI may follow.`,
+        text: `GSCPI at ${V2.gscpi.value.toFixed(2)} (${V2.gscpi.interpretation}) + UK CPI at ${ukCpi.value}%. Supply chain pressure with elevated inflation — BoE rate path hawkish.`,
         type: 'long', confidence: 'Medium', horizon: 'strategic'
       });
     }
