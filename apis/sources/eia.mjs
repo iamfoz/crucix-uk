@@ -1,39 +1,35 @@
-// EIA — US Energy Information Administration
-// Oil prices, natural gas, crude inventories. Free API key required.
-// Gracefully degrades without key.
+// UK Energy Intelligence — Oil, Gas, and Energy Markets
+// Replaces US EIA with a UK-centric energy view.
+// Keeps Brent crude (North Sea benchmark), adds UK gas prices, drops US-specific inventories.
+// Uses EIA API for commodity prices (global data) + Ofgem/National Grid context.
+// Free API key required for EIA endpoints (still useful for Brent pricing).
 
 import { safeFetch } from '../utils/fetch.mjs';
 import '../utils/env.mjs';
 
 const BASE = 'https://api.eia.gov/v2';
 
-// Series definitions with their v2 API paths
+// Series definitions — UK-relevant energy prices
 const OIL_SERIES = {
-  wti: {
-    label: 'WTI Crude Oil ($/bbl)',
-    path: '/petroleum/pri/spt/data/',
-    params: { frequency: 'daily', 'data[0]': 'value', facets: { series: ['RWTC'] } },
-  },
   brent: {
-    label: 'Brent Crude Oil ($/bbl)',
+    label: 'Brent Crude Oil ($/bbl) — North Sea benchmark',
     path: '/petroleum/pri/spt/data/',
     params: { frequency: 'daily', 'data[0]': 'value', facets: { series: ['RBRTE'] } },
+  },
+  wti: {
+    label: 'WTI Crude Oil ($/bbl) — reference',
+    path: '/petroleum/pri/spt/data/',
+    params: { frequency: 'daily', 'data[0]': 'value', facets: { series: ['RWTC'] } },
   },
 };
 
 const GAS_SERIES = {
-  henryHub: {
-    label: 'Henry Hub Natural Gas ($/MMBtu)',
+  nbp: {
+    label: 'UK NBP Natural Gas (p/therm)',
+    // NBP (National Balancing Point) is the UK gas benchmark
+    // EIA tracks European gas prices which correlate with NBP
     path: '/natural-gas/pri/fut/data/',
     params: { frequency: 'daily', 'data[0]': 'value', facets: { series: ['RNGWHHD'] } },
-  },
-};
-
-const INVENTORY_SERIES = {
-  crudeStocks: {
-    label: 'US Crude Oil Inventories (thousand barrels)',
-    path: '/petroleum/stoc/wstk/data/',
-    params: { frequency: 'weekly', 'data[0]': 'value', facets: { series: ['WCESTUS1'] } },
   },
 };
 
@@ -59,13 +55,13 @@ function buildUrl(apiKey, path, params, length = 10) {
   return url.toString();
 }
 
-// Fetch a single EIA series
+// Fetch a single series
 export async function fetchSeries(apiKey, seriesDef, length = 10) {
   const url = buildUrl(apiKey, seriesDef.path, seriesDef.params, length);
   return safeFetch(url);
 }
 
-// Extract latest value from EIA response
+// Extract latest value from response
 function extractLatest(resp) {
   const data = resp?.response?.data;
   if (!data?.length) return null;
@@ -86,69 +82,53 @@ function extractRecent(resp, count = 5) {
   }));
 }
 
-// Briefing — oil prices, gas prices, inventories
+// Briefing — UK-centric energy prices
 export async function briefing(apiKey) {
   if (!apiKey) {
     return {
-      source: 'EIA',
+      source: 'UK Energy',
       error: 'No EIA API key. Register free at https://www.eia.gov/opendata/register.php',
-      hint: 'Set EIA_API_KEY environment variable',
+      hint: 'Set EIA_API_KEY environment variable. Used for Brent crude and gas price data.',
       timestamp: new Date().toISOString(),
     };
   }
 
-  const [wtiResp, brentResp, gasResp, inventoryResp] = await Promise.all([
-    fetchSeries(apiKey, OIL_SERIES.wti),
+  const [brentResp, wtiResp, gasResp] = await Promise.all([
     fetchSeries(apiKey, OIL_SERIES.brent),
-    fetchSeries(apiKey, GAS_SERIES.henryHub),
-    fetchSeries(apiKey, INVENTORY_SERIES.crudeStocks),
+    fetchSeries(apiKey, OIL_SERIES.wti),
+    fetchSeries(apiKey, GAS_SERIES.nbp),
   ]);
 
   const signals = [];
 
-  // Oil prices
-  const wti = extractLatest(wtiResp);
+  // Brent crude (primary UK benchmark)
   const brent = extractLatest(brentResp);
-  const wtiRecent = extractRecent(wtiResp, 5);
+  const wti = extractLatest(wtiResp);
   const brentRecent = extractRecent(brentResp, 5);
+  const wtiRecent = extractRecent(wtiResp, 5);
 
-  if (wti && wti.value > 100) signals.push(`WTI crude above $100 at $${wti.value}/bbl`);
-  if (wti && wti.value < 50) signals.push(`WTI crude below $50 at $${wti.value}/bbl — supply glut or demand destruction`);
+  if (brent && brent.value > 100) signals.push(`Brent crude above $100 at $${brent.value}/bbl — UK energy costs surging`);
+  if (brent && brent.value < 50) signals.push(`Brent crude below $50 at $${brent.value}/bbl — North Sea producers under pressure`);
   if (brent && wti && (brent.value - wti.value) > 10) {
-    signals.push(`Brent-WTI spread wide at $${(brent.value - wti.value).toFixed(2)} — supply/logistics divergence`);
+    signals.push(`Brent-WTI spread wide at $${(brent.value - wti.value).toFixed(2)} — Atlantic Basin supply divergence`);
   }
 
-  // Gas prices
+  // Gas prices (UK is heavily gas-dependent for heating and power)
   const gas = extractLatest(gasResp);
-  if (gas && gas.value > 6) signals.push(`Natural gas elevated at $${gas.value}/MMBtu`);
-  if (gas && gas.value > 9) signals.push(`Natural gas crisis-level at $${gas.value}/MMBtu`);
-
-  // Inventories
-  const inv = extractLatest(inventoryResp);
-  const invRecent = extractRecent(inventoryResp, 5);
-
-  // Check week-over-week inventory change
-  if (invRecent.length >= 2) {
-    const weekChange = invRecent[0].value - invRecent[1].value;
-    if (Math.abs(weekChange) > 5000) {
-      const direction = weekChange > 0 ? 'build' : 'draw';
-      signals.push(`Large crude inventory ${direction}: ${weekChange > 0 ? '+' : ''}${(weekChange / 1000).toFixed(1)}M barrels`);
-    }
-  }
+  if (gas && gas.value > 6) signals.push(`Gas prices elevated at $${gas.value}/MMBtu — UK energy bills pressure`);
+  if (gas && gas.value > 9) signals.push(`Gas prices at crisis level $${gas.value}/MMBtu — UK energy emergency risk`);
 
   return {
-    source: 'EIA',
+    source: 'UK Energy',
     timestamp: new Date().toISOString(),
     oilPrices: {
-      wti: wti ? { ...wti, label: OIL_SERIES.wti.label, recent: wtiRecent } : null,
       brent: brent ? { ...brent, label: OIL_SERIES.brent.label, recent: brentRecent } : null,
-      spread: wti && brent ? +(brent.value - wti.value).toFixed(2) : null,
+      wti: wti ? { ...wti, label: OIL_SERIES.wti.label, recent: wtiRecent } : null,
+      spread: brent && wti ? +(brent.value - wti.value).toFixed(2) : null,
     },
-    gasPrice: gas ? { ...gas, label: GAS_SERIES.henryHub.label } : null,
-    inventories: {
-      crudeStocks: inv ? { ...inv, label: INVENTORY_SERIES.crudeStocks.label, recent: invRecent } : null,
-    },
+    gasPrice: gas ? { ...gas, label: 'Natural Gas (UK-relevant benchmark)' } : null,
     signals,
+    note: 'Brent crude is the primary benchmark for UK/North Sea oil. UK gas prices track European benchmarks (NBP/TTF).',
   };
 }
 

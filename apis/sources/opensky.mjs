@@ -1,6 +1,6 @@
 // OpenSky Network — Real-time flight tracking
 // Free for research. 4,000 API credits/day (no auth), 8,000 with account.
-// Tracks all aircraft with ADS-B transponders including many military.
+// UK-centric: includes UK airspace, North Sea, and global hotspots relevant to UK interests.
 
 import { safeFetch } from '../utils/fetch.mjs';
 
@@ -49,18 +49,22 @@ export async function getArrivals(airportIcao, begin, end) {
   return safeFetch(`${BASE}/flights/arrival?${params}`);
 }
 
-// Key hotspot regions for monitoring
+// Key hotspot regions — UK-centric + global strategic
 const HOTSPOTS = {
-  middleEast: { lamin: 12, lomin: 30, lamax: 42, lomax: 65, label: 'Middle East' },
-  taiwan: { lamin: 20, lomin: 115, lamax: 28, lomax: 125, label: 'Taiwan Strait' },
-  ukraine: { lamin: 44, lomin: 22, lamax: 53, lomax: 41, label: 'Ukraine Region' },
-  baltics: { lamin: 53, lomin: 19, lamax: 60, lomax: 29, label: 'Baltic Region' },
-  southChinaSea: { lamin: 5, lomin: 105, lamax: 23, lomax: 122, label: 'South China Sea' },
-  koreanPeninsula: { lamin: 33, lomin: 124, lamax: 43, lomax: 132, label: 'Korean Peninsula' },
-  caribbean: { lamin: 18, lomin: -90, lamax: 30, lomax: -72, label: 'Caribbean' },
-  gulfOfGuinea: { lamin: -2, lomin: -5, lamax: 8, lomax: 10, label: 'Gulf of Guinea' },
-  capeRoute: { lamin: -38, lomin: 12, lamax: -28, lomax: 24, label: 'Cape Route' },
-  hornOfAfrica: { lamin: 5, lomin: 40, lamax: 15, lomax: 55, label: 'Horn of Africa' },
+  // UK & nearby
+  ukAirspace:     { lamin: 49,  lomin: -8,   lamax: 61,  lomax: 2,   label: 'UK Airspace' },
+  northSea:       { lamin: 51,  lomin: -2,   lamax: 62,  lomax: 8,   label: 'North Sea' },
+  englishChannel: { lamin: 49,  lomin: -5,   lamax: 51.5,lomax: 2,   label: 'English Channel' },
+  gibrStraits:    { lamin: 35,  lomin: -7,   lamax: 37,  lomax: -4,  label: 'Strait of Gibraltar' },
+  // UK overseas territories & interests
+  falklands:      { lamin: -53, lomin: -62,  lamax: -51, lomax: -57, label: 'Falkland Islands' },
+  cyprusBases:    { lamin: 34,  lomin: 32,   lamax: 36,  lomax: 35,  label: 'Cyprus (UK Bases)' },
+  // Global flashpoints relevant to UK security
+  middleEast:     { lamin: 12,  lomin: 30,   lamax: 42,  lomax: 65,  label: 'Middle East' },
+  ukraine:        { lamin: 44,  lomin: 22,   lamax: 53,  lomax: 41,  label: 'Ukraine Region' },
+  baltics:        { lamin: 53,  lomin: 19,   lamax: 60,  lomax: 29,  label: 'Baltic Region' },
+  hornOfAfrica:   { lamin: 5,   lomin: 40,   lamax: 15,  lomax: 55,  label: 'Horn of Africa' },
+  southChinaSea:  { lamin: 5,   lomin: 105,  lamax: 23,  lomax: 122, label: 'South China Sea' },
 };
 
 // Briefing — check hotspot regions for flight activity

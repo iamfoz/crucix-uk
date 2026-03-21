@@ -19,18 +19,18 @@ import { briefing as ofac } from './sources/ofac.mjs';
 import { briefing as opensanctions } from './sources/opensanctions.mjs';
 import { briefing as adsb } from './sources/adsb.mjs';
 
-// === Tier 2: Economic & Financial ===
-import { briefing as fred } from './sources/fred.mjs';
-import { briefing as treasury } from './sources/treasury.mjs';
-import { briefing as bls } from './sources/bls.mjs';
-import { briefing as eia } from './sources/eia.mjs';
+// === Tier 2: Economic & Financial (UK-centric) ===
+import { briefing as fred } from './sources/fred.mjs';       // Bank of England
+import { briefing as treasury } from './sources/treasury.mjs'; // HM Treasury / DMO
+import { briefing as bls } from './sources/bls.mjs';         // ONS (Office for National Statistics)
+import { briefing as eia } from './sources/eia.mjs';         // UK Energy (Brent-focused)
 import { briefing as gscpi } from './sources/gscpi.mjs';
-import { briefing as usaspending } from './sources/usaspending.mjs';
-import { briefing as comtrade } from './sources/comtrade.mjs';
+import { briefing as usaspending } from './sources/usaspending.mjs'; // UK Contracts Finder
+import { briefing as comtrade } from './sources/comtrade.mjs';       // UN Comtrade (UK reporter)
 
 // === Tier 3: Weather, Environment, Technology, Social ===
-import { briefing as noaa } from './sources/noaa.mjs';
-import { briefing as epa } from './sources/epa.mjs';
+import { briefing as noaa } from './sources/noaa.mjs';       // UK Met Office / Environment Agency
+import { briefing as epa } from './sources/epa.mjs';         // UK Radiation Monitoring
 import { briefing as patents } from './sources/patents.mjs';
 import { briefing as bluesky } from './sources/bluesky.mjs';
 import { briefing as reddit } from './sources/reddit.mjs';
@@ -80,18 +80,18 @@ export async function fullBriefing() {
     runSource('OpenSanctions', opensanctions),
     runSource('ADS-B', adsb),
 
-    // Tier 2: Economic & Financial
-    runSource('FRED', fred, process.env.FRED_API_KEY),
-    runSource('Treasury', treasury),
-    runSource('BLS', bls, process.env.BLS_API_KEY),
-    runSource('EIA', eia, process.env.EIA_API_KEY),
+    // Tier 2: Economic & Financial (UK-centric)
+    runSource('BoE', fred),
+    runSource('HM Treasury', treasury),
+    runSource('ONS', bls),
+    runSource('UK Energy', eia, process.env.EIA_API_KEY),
     runSource('GSCPI', gscpi),
-    runSource('USAspending', usaspending),
+    runSource('UK Contracts', usaspending),
     runSource('Comtrade', comtrade),
 
     // Tier 3: Weather, Environment, Technology, Social
-    runSource('NOAA', noaa),
-    runSource('EPA', epa),
+    runSource('Met Office', noaa),
+    runSource('UK Radiation', epa),
     runSource('Patents', patents),
     runSource('Bluesky', bluesky),
     runSource('Reddit', reddit),

@@ -1,8 +1,8 @@
 <div align="center">
 
-# Crucix
+# Crucix (UK Edition)
 
-**Your own intelligence terminal. 27 sources. One command. Zero cloud.**
+**Your own intelligence terminal. 27 sources. One command. Zero cloud. UK-centric.**
 
 ## [Visit The Live Site: crucix.live](https://www.crucix.live/)
 
@@ -121,7 +121,7 @@ A self-contained Jarvis-style HUD with:
 - **News ticker** — merged RSS + GDELT headlines + Telegram posts, auto-scrolling
 - **Sweep delta** — live panel showing what changed since last sweep (new signals, escalations, de-escalations with severity)
 - **Cross-source signals** — correlated intelligence across satellite, economic, conflict, and social domains
-- **Nuclear watch** — real-time radiation readings from Safecast + EPA RadNet
+- **Nuclear watch** — real-time radiation readings from Safecast near UK nuclear sites (Sellafield, Hinkley, Faslane, etc.)
 - **Space watch** — CelesTrak satellite tracking: recent launches, ISS, military constellations, Starlink/OneWeb counts
 - **Leverageable ideas** — AI-generated trade ideas (with LLM) or signal-correlated ideas (without)
 
@@ -206,11 +206,10 @@ cp .env.example .env
 
 | Key | Source | How to Get |
 |-----|--------|------------|
-| `FRED_API_KEY` | Federal Reserve Economic Data | [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html) — instant, free |
 | `FIRMS_MAP_KEY` | NASA FIRMS (satellite fire data) | [firms.modaps.eosdis.nasa.gov](https://firms.modaps.eosdis.nasa.gov/api/area/) — instant, free |
-| `EIA_API_KEY` | US Energy Information Administration | [api.eia.gov](https://www.eia.gov/opendata/register.php) — instant, free |
+| `EIA_API_KEY` | Energy price data (Brent crude, gas) | [api.eia.gov](https://www.eia.gov/opendata/register.php) — instant, free |
 
-These three unlock the most valuable economic and satellite data. Each takes about 60 seconds to register.
+These two unlock satellite fire data and energy commodity pricing. Each takes about 60 seconds to register. UK economic data (BoE, ONS, HM Treasury) requires no API keys.
 
 ### Optional (enable additional sources)
 
@@ -346,7 +345,7 @@ crucix/
 | **OpenSky** | Real-time ADS-B flight tracking across 6 hotspot regions | None |
 | **NASA FIRMS** | Satellite fire/thermal anomaly detection (3hr latency) | Free key |
 | **Maritime/AIS** | Vessel tracking, dark ships, sanctions evasion | Free key |
-| **Safecast** | Citizen-science radiation monitoring near 6 nuclear sites | None |
+| **Safecast** | Citizen-science radiation monitoring near UK nuclear sites + global flashpoints | None |
 | **ACLED** | Armed conflict events: battles, explosions, protests | Free (OAuth2) |
 | **ReliefWeb** | UN humanitarian crisis tracking | None |
 | **WHO** | Disease outbreaks and health emergencies | None |
@@ -354,24 +353,24 @@ crucix/
 | **OpenSanctions** | Aggregated global sanctions (30+ sources) | Partial |
 | **ADS-B Exchange** | Unfiltered flight tracking including military | Paid |
 
-### Tier 2: Economic & Financial (7)
+### Tier 2: Economic & Financial — UK-Centric (7)
 
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
-| **FRED** | 22 key indicators: yield curve, CPI, VIX, fed funds, M2 | Free key |
-| **US Treasury** | National debt, yields, fiscal data | None |
-| **BLS** | CPI, unemployment, nonfarm payrolls, PPI | None |
-| **EIA** | WTI/Brent crude, natural gas, inventories | Free key |
+| **Bank of England** | Bank Rate, gilt yields, CPI, RPI, M4, GBP exchange rates | None |
+| **HM Treasury / DMO** | UK government debt, gilt yield curve, fiscal data | None |
+| **ONS** | UK unemployment, employment rate, claimant count, GDP, earnings | None |
+| **UK Energy (EIA)** | Brent crude (North Sea benchmark), natural gas prices | Free key |
 | **GSCPI** | NY Fed Global Supply Chain Pressure Index | None |
-| **USAspending** | Federal spending and defense contracts | None |
-| **UN Comtrade** | Strategic commodity trade flows between major powers | None |
+| **UK Contracts Finder** | Government & MoD defence procurement contracts | None |
+| **UN Comtrade** | UK strategic commodity trade flows (UK as primary reporter) | None |
 
 ### Tier 3: Weather, Environment, Tech, Social, SIGINT (7)
 
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
-| **NOAA/NWS** | Active US weather alerts | None |
-| **EPA RadNet** | US government radiation monitoring | None |
+| **UK Met Office / EA** | UK severe weather warnings & Environment Agency flood alerts | None |
+| **UK Radiation** | Radiation monitoring near UK nuclear installations (Safecast + EA) | None |
 | **USPTO Patents** | Patent filings in 7 strategic tech areas | None |
 | **Bluesky** | Social sentiment on geopolitical/market topics | None |
 | **Reddit** | Social sentiment from key subreddits | OAuth |
@@ -388,7 +387,7 @@ crucix/
 
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
-| **Yahoo Finance** | Real-time prices: SPY, QQQ, BTC, Gold, WTI, VIX + 9 more | None |
+| **Yahoo Finance** | FTSE 100/250, UK blue chips, Gilts, GBP/USD, GBP/EUR, Brent, BTC-GBP, VIX | None |
 
 ---
 
@@ -491,7 +490,7 @@ This is normal — the first sweep takes 30–60 seconds to query all 27 sources
 
 ### Some sources show errors
 
-Expected behavior. Sources that require API keys will return structured errors if the key isn't set. The rest of the sweep continues normally. Check the Source Integrity section in the dashboard (or the server logs) to see which sources failed and why. The 3 most impactful free keys to add are `FRED_API_KEY`, `FIRMS_MAP_KEY`, and `EIA_API_KEY`.
+Expected behavior. Sources that require API keys will return structured errors if the key isn't set. The rest of the sweep continues normally. Check the Source Integrity section in the dashboard (or the server logs) to see which sources failed and why. The 2 most impactful free keys to add are `FIRMS_MAP_KEY` and `EIA_API_KEY`. UK economic data from BoE, ONS, and HM Treasury requires no keys.
 
 OpenSky can also return `HTTP 429` when its public hotspots are queried too aggressively. Crucix does not try to evade that limit. Instead, it surfaces the throttle/error in source health and preserves the most recent non-empty air traffic snapshot from `runs/` so the dashboard flight layer does not suddenly go blank on a throttled sweep.
 
