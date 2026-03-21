@@ -271,7 +271,7 @@ export function generateIdeas(V2) {
   if (V2.tg.urgent.length > 3 && V2.energy.wti > 68) {
     ideas.push({
       title: 'Conflict-Energy Nexus Active',
-      text: `${V2.tg.urgent.length} urgent conflict signals with WTI at $${V2.energy.wti}. Geopolitical risk premium may expand. Consider energy exposure.`,
+      text: `${V2.tg.urgent.length} urgent conflict signals with Brent at $${V2.energy.brent}/bbl. Geopolitical risk premium may expand. Consider energy exposure.`,
       type: 'long', confidence: 'Medium', horizon: 'swing'
     });
   }
@@ -285,7 +285,7 @@ export function generateIdeas(V2) {
   if (vix && vix.value > 20 && hy && hy.value > 3) {
     ideas.push({
       title: 'Safe Haven Demand Rising',
-      text: `VIX ${vix.value} + HY spread ${hy.value}% = risk-off building. Gold, treasuries, quality dividends may outperform.`,
+      text: `VIX ${vix.value} + HY spread ${hy.value}% = risk-off building. Gold, gilts, quality dividends may outperform.`,
       type: 'hedge', confidence: 'Medium', horizon: 'tactical'
     });
   }
@@ -296,7 +296,7 @@ export function generateIdeas(V2) {
     if (Math.abs(pct) > 3) {
       ideas.push({
         title: pct > 0 ? 'Oil Momentum Building' : 'Oil Under Pressure',
-        text: `WTI moved ${pct > 0 ? '+' : ''}${pct}% recently to $${V2.energy.wti}/bbl. ${pct > 0 ? 'Energy and commodity names benefit.' : 'Demand concerns may be emerging.'}`,
+        text: `Brent moved ${pct > 0 ? '+' : ''}${pct}% recently to $${V2.energy.brent}/bbl. ${pct > 0 ? 'Energy and commodity names benefit.' : 'Demand concerns may be emerging.'}`,
         type: pct > 0 ? 'long' : 'watch', confidence: 'Medium', horizon: 'swing'
       });
     }
@@ -309,10 +309,10 @@ export function generateIdeas(V2) {
     });
   }
   const debt = parseFloat(V2.treasury.totalDebt);
-  if (debt > 35e12) {
+  if (debt > 90) {
     ideas.push({
       title: 'Fiscal Trajectory Supports Hard Assets',
-      text: `National debt at $${(debt / 1e12).toFixed(1)}T. Long-term gold, bitcoin, and real asset appreciation thesis intact.`,
+      text: `UK public debt at ${debt.toFixed(1)}% of GDP. Long-term gold, bitcoin, and real asset appreciation thesis intact.`,
       type: 'long', confidence: 'High', horizon: 'strategic'
     });
   }
@@ -346,7 +346,7 @@ export function generateIdeas(V2) {
     if (wtiMove > 2) {
       ideas.push({
         title: 'Conflict Fueling Energy Momentum',
-        text: `${conflictEvents} ACLED events this week + WTI up $${wtiMove.toFixed(1)}. Conflict-energy transmission channel active.`,
+        text: `${conflictEvents} ACLED events this week + Brent up $${wtiMove.toFixed(1)}. Conflict-energy transmission channel active.`,
         type: 'long', confidence: 'Medium', horizon: 'swing'
       });
     }
@@ -440,47 +440,51 @@ export async function synthesize(data) {
   const who = (data.sources.WHO?.diseaseOutbreakNews || []).slice(0, 10).map(w => ({
     title: w.title?.substring(0, 120), date: w.date, summary: w.summary?.substring(0, 150)
   }));
-  const fred = (data.sources.FRED?.indicators || []).map(f => ({
+  const fred = (data.sources.BoE?.indicators || data.sources.FRED?.indicators || []).map(f => ({
     id: f.id, label: f.label, value: f.value, date: f.date,
     recent: f.recent || [],
     momChange: f.momChange, momChangePct: f.momChangePct
   }));
-  const energyData = data.sources.EIA || {};
+  const energyData = data.sources['UK Energy'] || data.sources.EIA || {};
   const oilPrices = energyData.oilPrices || {};
+  const brentRecent = (oilPrices.brent?.recent || []).map(d => d.value);
   const wtiRecent = (oilPrices.wti?.recent || []).map(d => d.value);
   const energy = {
     wti: oilPrices.wti?.value, brent: oilPrices.brent?.value,
-    natgas: energyData.gasPrice?.value, crudeStocks: energyData.inventories?.crudeStocks?.value,
-    wtiRecent, signals: energyData.signals || []
+    natgas: energyData.gasPrice?.value,
+    wtiRecent: brentRecent.length ? brentRecent : wtiRecent, signals: energyData.signals || []
   };
-  const bls = data.sources.BLS?.indicators || [];
-  const treasuryData = data.sources.Treasury || {};
+  const bls = (data.sources.ONS || data.sources.BLS)?.indicators || [];
+  const treasuryData = data.sources['HM Treasury'] || data.sources.Treasury || {};
   const debtArr = treasuryData.debt || [];
-  const treasury = { totalDebt: debtArr[0]?.totalDebt || '0', signals: treasuryData.signals || [] };
+  const treasury = { totalDebt: debtArr[0]?.value || debtArr[0]?.totalDebt || '0', signals: treasuryData.signals || [] };
   const gscpi = data.sources.GSCPI?.latest || null;
-  const defense = (data.sources.USAspending?.recentDefenseContracts || []).slice(0, 5).map(c => ({
-    recipient: c.recipient?.substring(0, 40), amount: c.amount, desc: c.description?.substring(0, 80)
+  const defense = ((data.sources['UK Contracts'] || data.sources.USAspending)?.recentDefenceContracts || (data.sources['UK Contracts'] || data.sources.USAspending)?.recentDefenseContracts || []).slice(0, 5).map(c => ({
+    recipient: (c.buyer || c.recipient)?.substring(0, 40), amount: c.value || c.amount, desc: (c.title || c.description)?.substring(0, 80)
   }));
+  const metOfficeData = data.sources['Met Office'] || data.sources.NOAA || {};
   const noaa = {
-    totalAlerts: data.sources.NOAA?.totalSevereAlerts || 0,
-    alerts: (data.sources.NOAA?.topAlerts || []).filter(a => a.lat != null && a.lon != null).slice(0, 10).map(a => ({
-      event: a.event, severity: a.severity, headline: a.headline?.substring(0, 120),
+    totalAlerts: metOfficeData.weatherWarnings?.total || metOfficeData.totalSevereAlerts || 0,
+    alerts: (metOfficeData.floodWarnings?.topAlerts || metOfficeData.topAlerts || []).filter(a => a.lat != null && a.lon != null).slice(0, 10).map(a => ({
+      event: a.event || a.description, severity: a.severity || a.severityLevel, headline: (a.headline || a.area)?.substring(0, 120),
       lat: a.lat, lon: a.lon
     }))
   };
 
-  // EPA RadNet — pass through geo-tagged readings
-  const epaData = data.sources.EPA || {};
+  // UK Radiation — pass through geo-tagged site data
+  const epaData = data.sources['UK Radiation'] || data.sources.EPA || {};
   const epaStations = [];
   const seenEpa = new Set();
-  for (const r of (epaData.readings || [])) {
-    if (r.lat == null || r.lon == null) continue;
-    const key = `${r.lat},${r.lon}`;
+  for (const s of (epaData.sites || epaData.readings || [])) {
+    const lat = s.lat ?? null;
+    const lon = s.lon ?? null;
+    if (lat == null || lon == null) continue;
+    const key = `${lat},${lon}`;
     if (seenEpa.has(key)) continue;
     seenEpa.add(key);
-    epaStations.push({ location: r.location, state: r.state, lat: r.lat, lon: r.lon, analyte: r.analyte, result: r.result, unit: r.unit });
+    epaStations.push({ location: s.site || s.location, state: s.key || s.state, lat, lon, analyte: s.status || s.analyte, result: s.avgCPM || s.result, unit: s.unit || 'CPM' });
   }
-  const epa = { totalReadings: epaData.totalReadings || 0, stations: epaStations.slice(0, 10) };
+  const epa = { totalReadings: epaData.totalSites || epaData.totalReadings || 0, stations: epaStations.slice(0, 10) };
 
   // Space/CelesTrak satellite data
   const spaceData = data.sources.Space || {};
@@ -548,24 +552,36 @@ export async function synthesize(data) {
     n: name, err: Boolean(src.error), stale: Boolean(src.stale)
   }));
 
-  // === Yahoo Finance live market data ===
+  // === Yahoo Finance live market data (UK-centric) ===
   const yfData = data.sources.YFinance || {};
   const yfQuotes = yfData.quotes || {};
   const markets = {
     indexes: (yfData.indexes || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
+      symbol: q.symbol, name: q.name, price: q.price, currency: q.currency,
       change: q.change, changePct: q.changePct, history: q.history || []
     })),
+    ukStocks: (yfData.ukStocks || []).map(q => ({
+      symbol: q.symbol, name: q.name, price: q.price, currency: q.currency,
+      change: q.change, changePct: q.changePct
+    })),
+    gilts: (yfData.gilts || []).map(q => ({
+      symbol: q.symbol, name: q.name, price: q.price, currency: q.currency,
+      change: q.change, changePct: q.changePct
+    })),
+    forex: (yfData.forex || []).map(q => ({
+      symbol: q.symbol, name: q.name, price: q.price, currency: q.currency,
+      change: q.change, changePct: q.changePct
+    })),
     rates: (yfData.rates || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
+      symbol: q.symbol, name: q.name, price: q.price, currency: q.currency,
       change: q.change, changePct: q.changePct
     })),
     commodities: (yfData.commodities || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
+      symbol: q.symbol, name: q.name, price: q.price, currency: q.currency,
       change: q.change, changePct: q.changePct, history: q.history || []
     })),
     crypto: (yfData.crypto || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
+      symbol: q.symbol, name: q.name, price: q.price, currency: q.currency,
       change: q.change, changePct: q.changePct
     })),
     vix: yfQuotes['^VIX'] ? {
@@ -576,14 +592,16 @@ export async function synthesize(data) {
     timestamp: yfData.summary?.timestamp || null,
   };
 
-  // Override stale EIA prices with live Yahoo Finance data if available
+  // Override stale energy prices with live Yahoo Finance data if available
   const yfWti = yfQuotes['CL=F'];
   const yfBrent = yfQuotes['BZ=F'];
   const yfNatgas = yfQuotes['NG=F'];
   if (yfWti?.price) energy.wti = yfWti.price;
   if (yfBrent?.price) energy.brent = yfBrent.price;
   if (yfNatgas?.price) energy.natgas = yfNatgas.price;
-  if (yfWti?.history?.length) energy.wtiRecent = yfWti.history.map(h => h.close);
+  // Prefer Brent history for UK dashboard (Brent is North Sea benchmark)
+  if (yfBrent?.history?.length) energy.wtiRecent = yfBrent.history.map(h => h.close);
+  else if (yfWti?.history?.length) energy.wtiRecent = yfWti.history.map(h => h.close);
 
   // Fetch RSS
   const news = await fetchAllNews();
