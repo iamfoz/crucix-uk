@@ -496,7 +496,13 @@ export async function synthesize(data) {
     return { lat: +lat.toFixed(2), lon: +lon.toFixed(2), name: sat.name };
   }
   const issPos = estimateSatPosition(spaceData.iss);
-  const spaceStations = (spaceData.spaceStations || []).map(s => estimateSatPosition(s)).filter(Boolean);
+  // De-duplicate stations at same position (e.g. ISS modules like Poisk are co-located)
+  const rawStations = (spaceData.spaceStations || []).map(s => estimateSatPosition(s)).filter(Boolean);
+  const spaceStations = [];
+  for (const s of rawStations) {
+    const tooClose = spaceStations.some(e => Math.abs(e.lat - s.lat) < 2 && Math.abs(e.lon - s.lon) < 5);
+    if (!tooClose) spaceStations.push(s);
+  }
   const space = {
     totalNewObjects: spaceData.totalNewObjects || 0,
     militarySats: spaceData.militarySatellites || 0,

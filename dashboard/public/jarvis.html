@@ -395,7 +395,7 @@ let globeInitialized = false;
 let flightsVisible = true;
 let lowPerfMode = localStorage.getItem('crucix_low_perf') === 'true';
 let isFlat = shouldStartFlat();
-let currentRegion = 'world';
+let currentRegion = 'uk';
 let flatSvg, flatProjection, flatPath, flatG, flatZoom, flatW, flatH;
 const signalGuideItems = [
   {
@@ -513,6 +513,7 @@ const signalGuideItems = [
 ];
 const regionPOV = {
   world: { lat: 20, lng: 20, altitude: 1.8 },
+  uk: { lat: 54, lng: -2, altitude: 0.35 },
   americas: { lat: 35, lng: -95, altitude: 1.0 },
   europe: { lat: 50, lng: 15, altitude: 1.0 },
   middleEast: { lat: 28, lng: 45, altitude: 1.1 },
@@ -562,8 +563,8 @@ function togglePerfMode(){
 
 // === TOPBAR ===
 function getRegionControlsMarkup(){
-  return ['world','americas','europe','middleEast','asiaPacific','africa'].map(r=>
-    `<button class="region-btn ${r===currentRegion?'active':''}" data-region="${r}" onclick="setRegion('${r}')">${r==='middleEast'?'MIDDLE EAST':r==='asiaPacific'?'ASIA PACIFIC':r.toUpperCase()}</button>`
+  return ['world','uk','americas','europe','middleEast','asiaPacific','africa'].map(r=>
+    `<button class="region-btn ${r===currentRegion?'active':''}" data-region="${r}" onclick="setRegion('${r}')">${r==='middleEast'?'MIDDLE EAST':r==='asiaPacific'?'ASIA PACIFIC':r==='uk'?'UK FOCUS':r.toUpperCase()}</button>`
   ).join('');
 }
 
@@ -800,8 +801,8 @@ function initGlobe(){
     }
   });
 
-  // Set initial POV
-  globe.pointOfView(regionPOV.world, 0);
+  // Set initial POV — start zoomed into UK
+  globe.pointOfView(regionPOV.uk, 0);
 
   // Auto-rotate slowly
   globe.controls().autoRotate = !lowPerfMode;
@@ -977,6 +978,22 @@ function plotMarkers(){
     });
   });
 
+  // Declutter overlapping points — nudge apart markers within 1.5° of each other
+  const UK_BOX = { latMin: 49, latMax: 61, lonMin: -9, lonMax: 3 };
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const a = points[i], b = points[j];
+      const dLat = Math.abs(a.lat - b.lat), dLon = Math.abs(a.lng - b.lng);
+      if (dLat < 1.5 && dLon < 1.5) {
+        // Nudge apart by spreading in a circle
+        const angle = (j * 2.094) % (Math.PI * 2); // ~120° increments
+        const offset = 0.8;
+        b.lat += Math.sin(angle) * offset;
+        b.lng += Math.cos(angle) * offset;
+      }
+    }
+  }
+
   // Set points on globe
   globe.pointsData(points);
   globe.labelsData(labels);
@@ -1127,7 +1144,8 @@ function toggleFlights() {
 
 // === FLAT/GLOBE TOGGLE ===
 const flatRegionBounds = {
-  world:[[-180,-60],[180,80]], americas:[[-130,10],[-60,55]], europe:[[-12,34],[45,72]],
+  world:[[-180,-60],[180,80]], uk:[[-9,49],[3,61]],
+  americas:[[-130,10],[-60,55]], europe:[[-12,34],[45,72]],
   middleEast:[[24,10],[65,45]], asiaPacific:[[60,-12],[180,55]], africa:[[-20,-36],[55,38]]
 };
 
@@ -1181,7 +1199,7 @@ function initFlatMap(){
     const k=event.transform.k;
     flatG.selectAll('.marker-circle').attr('r',function(){return +this.dataset.baseR/Math.sqrt(k)});
     flatG.selectAll('.marker-label').style('font-size',Math.max(7,9/Math.sqrt(k))+'px')
-      .style('display',k>=2.5?'block':'none');
+      .style('display',k>=1.8?'block':'none');
   });
   flatSvg.call(flatZoom);
   drawFlatMap();
@@ -1195,6 +1213,8 @@ function drawFlatMap(){
       flatG.selectAll('path.land').data(countries.features).enter().append('path').attr('class','land').attr('d',flatPath);
       flatG.append('path').datum(topojson.mesh(world,world.objects.countries,(a,b)=>a!==b)).attr('class','border').attr('d',flatPath);
       plotFlatMarkers();
+      // Auto-zoom to UK on initial load
+      if(currentRegion==='uk') setTimeout(()=>setRegion('uk'),100);
     });
 }
 
@@ -1360,11 +1380,11 @@ function renderLower(){
 
   // Helper: format market quote card
   const mktCard = (q) => {
-    if(!q||q.error) return '';
+    if(!q||q.error||q.price==null) return '';
     const clr = q.changePct>=0?'var(--accent)':'var(--warn)';
     const arrow = q.changePct>=0?'&#9650;':'&#9660;';
     const cur=(q.currency==='GBP'||q.currency==='GBp')?'£':'$';
-    return `<div class="mc"><div class="ml">${q.name||q.symbol}</div><span class="mv" style="color:${clr}">${q.symbol.includes('BTC')||q.symbol.includes('ETH')?cur+q.price.toLocaleString():cur+q.price}</span><span class="ms" style="color:${clr}">${arrow} ${q.changePct>=0?'+':''}${q.changePct}%</span></div>`;
+    return `<div class="mc"><div class="ml">${q.name||q.symbol}</div><span class="mv" style="color:${clr}">${q.symbol.includes('BTC')||q.symbol.includes('ETH')?cur+q.price.toLocaleString():cur+q.price}</span><span class="ms" style="color:${clr}">${arrow} ${q.changePct!=null?(q.changePct>=0?'+':'')+q.changePct+'%':'--'}</span></div>`;
   };
 
   // VIX from Yahoo Finance live data (BoE doesn't provide VIX)
@@ -1373,14 +1393,14 @@ function renderLower(){
   const vixChg = vixLive?.changePct != null ? `${vixLive.changePct>=0?'+':''}${vixLive.changePct}%` : '';
 
   const metrics=[
-    {l:'Brent Crude',v:`$${D.energy.brent}`,s:'$/bbl',p:75},
-    {l:'WTI Ref.',v:`$${D.energy.wti}`,s:'$/bbl',p:70},
-    {l:'Nat Gas',v:`$${D.energy.natgas||'--'}`,s:'$/MMBtu',p:30},
-    {l:'VIX',v:vixVal?vixVal.toFixed(1):'--',s:vixChg||'volatility index',p:vixVal?Math.min(vixVal*2.5,100):30},
-    {l:'Bank Rate',v:ff?`${ff.value}%`:'--',s:ff?.date||'',p:36},
-    {l:'GSCPI',v:gscpi?gscpi.value.toFixed(2):'--',s:gscpi?.interpretation||'',p:49},
-    {l:'CPI MoM',v:cpi?`+${cpi.momChangePct?.toFixed(2)}%`:'--',s:cpi?.date||'',p:37},
-    {l:'Unemployment',v:ue?`${ue.value}%`:'--',s:ue?`${ue.momChange>0?'+':''}${ue.momChange} vs prior`:'',p:44},
+    {l:'Brent Crude',v:D.energy.brent!=null?`$${D.energy.brent}`:'--',s:'$/bbl',p:75},
+    {l:'WTI Ref.',v:D.energy.wti!=null?`$${D.energy.wti}`:'--',s:'$/bbl',p:70},
+    {l:'Nat Gas',v:D.energy.natgas!=null?`$${D.energy.natgas}`:'--',s:'$/MMBtu',p:30},
+    {l:'VIX',v:vixVal!=null?vixVal.toFixed(1):'--',s:vixChg||'volatility index',p:vixVal?Math.min(vixVal*2.5,100):30},
+    {l:'Bank Rate',v:ff?.value!=null?`${ff.value}%`:'--',s:ff?.date||'',p:36},
+    {l:'GSCPI',v:gscpi?.value!=null?gscpi.value.toFixed(2):'--',s:gscpi?.interpretation||'',p:49},
+    {l:'CPI MoM',v:cpi?.momChangePct!=null?`+${cpi.momChangePct.toFixed(2)}%`:'--',s:cpi?.date||'',p:37},
+    {l:'Unemployment',v:ue?.value!=null?`${ue.value}%`:'--',s:ue?.momChange!=null?`${ue.momChange>0?'+':''}${ue.momChange} vs prior`:'',p:44},
   ];
 
   // Attach sparklines from FRED recent data
